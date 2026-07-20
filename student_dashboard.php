@@ -69,6 +69,13 @@ $studyMaterials = [
     ["unit" => "Unit 2", "name" => "K-Map Simplification Guide", "ext" => "pdf", "size" => "1.8 MB"],
     ["unit" => "Unit 3", "name" => "Logic gates logic sheets", "ext" => "zip", "size" => "4.5 MB"]
 ];
+
+$basePath = rtrim(dirname($_SERVER['SCRIPT_NAME']), '/');
+if ($basePath === '' || $basePath === '/') {
+    $basePath = '';
+}
+$cssPath = $basePath . '/assets/css/style.css';
+$jsPath = $basePath . '/assets/js/script.js';
 ?>
 <!DOCTYPE html>
 <html lang="en">
@@ -84,7 +91,7 @@ $studyMaterials = [
     <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.4.0/css/all.min.css">
     <!-- Chart.js CDN -->
     <script src="https://cdn.jsdelivr.net/npm/chart.js"></script>
-    <link rel="stylesheet" href="style.css">
+    <link rel="stylesheet" href="<?php echo $cssPath; ?>">
     <script>
         // Inject PHP serialized arrays directly into Client-side JS window object
         window.PHP_DATA = <?php echo json_encode([
@@ -968,6 +975,6 @@ $studyMaterials = [
     <div class="toast-container" id="toast-container"></div>
 
     <!-- Main Engine Script -->
-    <script src="app.js"></script>
+    <script src="<?php echo $jsPath; ?>"></script>
 </body>
 </html>

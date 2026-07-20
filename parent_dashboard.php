@@ -70,7 +70,7 @@ $notices = [
     <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.4.0/css/all.min.css">
     <!-- Chart.js CDN -->
     <script src="https://cdn.jsdelivr.net/npm/chart.js"></script>
-    <link rel="stylesheet" href="style.css">
+    <link rel="stylesheet" href="<?php echo $cssPath; ?>">
     <script>
         // Inject PHP serialized arrays directly into Client-side JS window object
         window.PHP_DATA = <?php echo json_encode([
@@ -784,6 +784,6 @@ $notices = [
     <div class="toast-container" id="toast-container"></div>
 
     <!-- Main Engine Script -->
-    <script src="app.js"></script>
+    <script src="<?php echo $jsPath; ?>"></script>
 </body>
 </html>
