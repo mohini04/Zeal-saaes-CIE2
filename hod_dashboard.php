@@ -4,7 +4,7 @@ $deptName = "E&TC Department";
 $collegeName = "Zeal College of Engineering & Research, Pune";
 
 $stats = [
-    "totalFaculty" => 28,
+    "totalFaculty" => 27,
     "totalStudents" => 612,
     "totalActivities" => 185,
     "pendingApprovals" => 17,
