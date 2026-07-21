@@ -14,14 +14,14 @@
     <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.4.0/css/all.min.css">
     
     <!-- Custom CSS -->
-    <link rel="stylesheet" href="/cie2_system/assets/css/style.css">
+    <link rel="stylesheet" href="assets/css/style.css">
 </head>
 <body>
     <!-- Header/Navbar -->
     <header class="app-header">
         <div class="header-container">
             <!-- College Branding (Logo + Text) -->
-            <a href="/cie2_system/index.php" class="brand-link">
+            <a href="index.php" class="brand-link">
                 <div class="logo-wrapper">
                     <!-- Custom Premium SVG College Crest -->
                     <svg viewBox="0 0 100 100" class="logo-svg">
@@ -43,9 +43,9 @@
 
             <!-- Navigation Links -->
             <nav class="nav-menu">
-                <a href="/cie2_system/index.php#home" class="nav-link">Home</a>
-                <a href="/cie2_system/index.php#features" class="nav-link">Features</a>
-                <a href="/cie2_system/index.php#roles" class="nav-link">User Roles</a>
+                <a href="index.php#home" class="nav-link">Home</a>
+                <a href="index.php#features" class="nav-link">Features</a>
+                <a href="index.php#roles" class="nav-link">User Roles</a>
             </nav>
 
             <!-- Navbar Actions (Clock + Buttons) -->
@@ -56,10 +56,10 @@
                     <span id="live-datetime">-- --- ---- --:--:-- --</span>
                 </div>
                 
-                <a href="/cie2_system/index.php#roles" class="btn btn-outline">
+                <a href="index.php#roles" class="btn btn-outline">
                     <i class="fas fa-user-plus btn-icon"></i> Register
                 </a>
-                <a href="/cie2_system/auth/login.php" class="btn btn-primary">
+                <a href="auth/login.php" class="btn btn-primary">
                     <i class="fas fa-sign-in-alt btn-icon"></i> Login
                 </a>
             </div>

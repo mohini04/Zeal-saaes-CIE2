@@ -25,6 +25,6 @@
     </footer>
 
     <!-- Custom Script -->
-    <script src="/cie2_system/assets/js/script.js"></script>
+    <script src="assets/js/script.js"></script>
 </body>
 </html>
