@@ -4,7 +4,7 @@ $deptName = "E&TC Department";
 $collegeName = "Zeal College of Engineering & Research, Pune";
 
 $stats = [
-    "totalFaculty" => 28,
+    "totalFaculty" => 27,
     "totalStudents" => 612,
     "totalActivities" => 185,
     "pendingApprovals" => 17,
@@ -68,7 +68,7 @@ $deadlines = [
     <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.4.0/css/all.min.css">
     <!-- Chart.js CDN -->
     <script src="https://cdn.jsdelivr.net/npm/chart.js"></script>
-    <link rel="stylesheet" href="style.css">
+    <link rel="stylesheet" href="assets/css/style.css">
     <script>
         // Inject PHP serialized arrays directly into Client-side JS window object
         window.PHP_DATA = <?php echo json_encode([
@@ -89,6 +89,9 @@ $deadlines = [
         <!-- Header -->
         <header class="main-header">
             <div class="header-left">
+                <button class="mobile-menu-btn" id="mobile-menu-btn" aria-label="Toggle Menu">
+                    <i class="fa-solid fa-bars"></i>
+                </button>
                 <div class="logo-area">
                     <i class="fa-solid fa-graduation-cap logo-icon"></i>
                     <div class="logo-text">
@@ -719,6 +722,6 @@ $deadlines = [
     <div class="toast-container" id="toast-container"></div>
 
     <!-- Main Engine Script -->
-    <script src="app.js"></script>
+    <script src="assets/js/script.js"></script>
 </body>
 </html>

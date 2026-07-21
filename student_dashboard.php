@@ -84,7 +84,7 @@ $studyMaterials = [
     <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.4.0/css/all.min.css">
     <!-- Chart.js CDN -->
     <script src="https://cdn.jsdelivr.net/npm/chart.js"></script>
-    <link rel="stylesheet" href="style.css">
+    <link rel="stylesheet" href="assets/css/style.css">
     <script>
         // Inject PHP serialized arrays directly into Client-side JS window object
         window.PHP_DATA = <?php echo json_encode([
@@ -107,6 +107,9 @@ $studyMaterials = [
         <!-- Header -->
         <header class="main-header">
             <div class="header-left">
+                <button class="mobile-menu-btn" id="mobile-menu-btn" aria-label="Toggle Menu">
+                    <i class="fa-solid fa-bars"></i>
+                </button>
                 <div class="logo-area">
                     <i class="fa-solid fa-graduation-cap logo-icon"></i>
                     <div class="logo-text">
@@ -171,33 +174,6 @@ $studyMaterials = [
                         </li>
                         <li class="nav-item" data-tab="my-activities">
                             <a href="#"><i class="fa-solid fa-book"></i> <span>My Activities</span></a>
-                        </li>
-                        <li class="nav-item" data-tab="submitted-activities">
-                            <a href="#"><i class="fa-solid fa-square-check"></i> <span>Submitted Activities</span></a>
-                        </li>
-                        <li class="nav-item" data-tab="pending-activities">
-                            <a href="#"><i class="fa-solid fa-clock"></i> <span>Pending Activities</span><span class="sidebar-badge" id="sidebar-pending-count"><?php echo $stats['pendingActivities']; ?></span></a>
-                        </li>
-                        <li class="nav-item" data-tab="performance">
-                            <a href="#"><i class="fa-solid fa-chart-simple"></i> <span>Marks & Performance</span></a>
-                        </li>
-                        <li class="nav-item" data-tab="calendar">
-                            <a href="#"><i class="fa-solid fa-calendar-days"></i> <span>Calendar</span></a>
-                        </li>
-                        <li class="nav-item" data-tab="notices">
-                            <a href="#"><i class="fa-solid fa-bullhorn"></i> <span>Notices</span></a>
-                        </li>
-                        <li class="nav-item" data-tab="messages">
-                            <a href="#"><i class="fa-solid fa-comments"></i> <span>Messages</span></a>
-                        </li>
-                        <li class="nav-item" data-tab="study-material">
-                            <a href="#"><i class="fa-solid fa-book-open"></i> <span>Study Material</span></a>
-                        </li>
-                        <li class="nav-item" data-tab="profile">
-                            <a href="#"><i class="fa-solid fa-user"></i> <span>Profile</span></a>
-                        </li>
-                        <li class="nav-item" data-tab="change-password">
-                            <a href="#"><i class="fa-solid fa-key"></i> <span>Change Password</span></a>
                         </li>
                         <li class="nav-item" id="sidebar-logout-btn">
                             <a href="#"><i class="fa-solid fa-door-open"></i> <span>Logout</span></a>
@@ -275,14 +251,19 @@ $studyMaterials = [
                         </div>
 
                         <div class="summary-card card-rank" data-target-tab="performance">
-                            <div class="card-icon"><i class="fa-solid fa-star"></i></div>
-                            <div class="card-info">
-                                <span class="card-label">Activity Rank</span>
-                                <h3 class="card-value txt-purple" id="stat-activity-rank"><?php echo htmlspecialchars($stats['activityRank']); ?></h3>
-                                <span class="card-change text-info">in Class Division</span>
+                            <div class="card-icon"><i class="fa-solid fa-chart-bar"></i></div>
+                            <div class="card-info" style="width: 100%;">
+                                <span class="card-label" style="display: block; margin-bottom: 8px;">Unit-wise Breakdown</span>
+                                <div style="display: flex; gap: 6px; flex-wrap: wrap; margin-top: 5px;">
+                                    <span class="badge bg-primary-light text-primary border border-primary-subtle" style="font-size: 0.8rem; padding: 4px 8px;">U1: 4.2</span>
+                                    <span class="badge bg-success-light text-success border border-success-subtle" style="font-size: 0.8rem; padding: 4px 8px;">U2: 4.8</span>
+                                    <span class="badge bg-warning-light text-warning border border-warning-subtle" style="font-size: 0.8rem; padding: 4px 8px;">U3: 3.5</span>
+                                    <span class="badge bg-purple-light text-purple border border-purple-subtle" style="font-size: 0.8rem; padding: 4px 8px;">U4: 4.0</span>
+                                </div>
                             </div>
                             <div class="card-decor"></div>
                         </div>
+
                     </div>
 
                     <!-- Row 1: My Activities & Recent Submissions -->
@@ -411,61 +392,8 @@ $studyMaterials = [
                                 </div>
                             </div>
                         </div>
-
-                        <!-- Performance Analytics Charts -->
-                        <div class="dashboard-card main-card flex-1">
-                            <div class="card-header border-bottom">
-                                <div class="header-title-container">
-                                    <i class="fa-solid fa-chart-column header-icon text-purple"></i>
-                                    <h3>Performance Analytics</h3>
-                                </div>
-                                <div class="chart-tab-controls">
-                                    <button class="chart-tab-btn active" data-chart="unit-marks">Unit-wise Marks</button>
-                                    <button class="chart-tab-btn" data-chart="sub-status">Submission Status</button>
-                                    <button class="chart-tab-btn" data-chart="weekly-progress">Weekly Progress</button>
-                                    <button class="chart-tab-btn" data-chart="perf-trend">Performance Trend</button>
-                                </div>
-                            </div>
-                            <div class="card-body chart-wrapper">
-                                <div class="chart-container">
-                                    <canvas id="student-performance-chart"></canvas>
-                                </div>
-                            </div>
-                        </div>
-                    </div>
-
-                    <!-- Row 3: Attendance, Faculty Feedback & Notifications -->
-                    <div class="dashboard-row triple-column">
-                        <!-- Attendance Summary -->
-                        <div class="dashboard-card main-card">
-                            <div class="card-header border-bottom">
-                                <div class="header-title-container">
-                                    <i class="fa-solid fa-clipboard-user header-icon text-blue"></i>
-                                    <h3>Attendance Summary</h3>
-                                </div>
-                            </div>
-                            <div class="card-body flex-column gap-3 justify-center align-center">
-                                <div class="attendance-flex-row">
-                                    <div class="attendance-progress-ring-container">
-                                        <svg class="progress-ring-svg" width="120" height="120">
-                                            <circle class="ring-circle-bg" stroke="#E2E8F0" stroke-width="10" fill="transparent" r="50" cx="60" cy="60"/>
-                                            <circle class="ring-circle-fill" stroke="var(--info)" stroke-width="10" fill="transparent" r="50" cx="60" cy="60" stroke-dasharray="314.15" stroke-dashoffset="28.27" id="attendance-ring-circle"/>
-                                        </svg>
-                                        <div class="progress-ring-text">
-                                            <span class="pct"><?php echo $stats['attendance']; ?>%</span>
-                                            <span class="lbl">Overall</span>
-                                        </div>
-                                    </div>
-                                    <div class="attendance-list-table">
-                                        <table class="dashboard-table clean-table font-semibold">
-                                            <tbody id="attendance-list">
-                                                <!-- Dynamic attendance values -->
-                                            </tbody>
-                                        </table>
-                                    </div>
-                                </div>
-                            </div>
-                        </div>
+                    </div>                    <!-- Row 3: Faculty Feedback & Notifications -->
+                    <div class="dashboard-row double-column">
 
                         <!-- Faculty Feedback -->
                         <div class="dashboard-card main-card">
@@ -509,59 +437,8 @@ $studyMaterials = [
                         </div>
                     </div>
 
-                    <!-- Row 4: Academic Progress, Achievements & Quick Actions -->
-                    <div class="dashboard-row double-column">
-                        <!-- Academic Progress & Achievements -->
-                        <div class="dashboard-card main-card flex-grow-1">
-                            <div class="card-header border-bottom">
-                                <div class="header-title-container">
-                                    <i class="fa-solid fa-award header-icon text-purple"></i>
-                                    <h3>Academic Progress & Achievements</h3>
-                                </div>
-                            </div>
-                            <div class="card-body progress-achievement-flex">
-                                <div class="academic-metrics-grid">
-                                    <div class="metric-item-card">
-                                        <span class="m-label">Activities Completed</span>
-                                        <span class="m-value txt-green" id="met-activities"><?php echo $stats['submittedActivities']; ?>/12</span>
-                                    </div>
-                                    <div class="metric-item-card">
-                                        <span class="m-label">Average Marks</span>
-                                        <span class="m-value txt-blue" id="met-avg-marks">4.2 / 5</span>
-                                    </div>
-                                    <div class="metric-item-card">
-                                        <span class="m-label">Current CGPA</span>
-                                        <span class="m-value txt-purple" id="met-cgpa"><?php echo $stats['cgpa']; ?></span>
-                                    </div>
-                                    <div class="metric-item-card">
-                                        <span class="m-label">Class Rank</span>
-                                        <span class="m-value txt-orange" id="met-rank"><?php echo $stats['classRank']; ?></span>
-                                    </div>
-                                    <div class="metric-item-card">
-                                        <span class="m-label">Attendance</span>
-                                        <span class="m-value txt-teal" id="met-attendance"><?php echo $stats['attendance']; ?>%</span>
-                                    </div>
-                                </div>
-                                <div class="achievements-badges-grid">
-                                    <div class="badge-item-card" title="Scored top marks in recent assessments">
-                                        <div class="badge-gold-icon"><i class="fa-solid fa-medal"></i></div>
-                                        <span>Top Performer</span>
-                                    </div>
-                                    <div class="badge-item-card" title="Submitted all activities on time">
-                                        <div class="badge-purple-icon"><i class="fa-solid fa-fire"></i></div>
-                                        <span>Perfect Streak</span>
-                                    </div>
-                                    <div class="badge-item-card" title="Maintain 100% attendance this month">
-                                        <div class="badge-teal-icon"><i class="fa-solid fa-user-check"></i></div>
-                                        <span>100% Attendance</span>
-                                    </div>
-                                    <div class="badge-item-card" title="Completed curriculum activities portfolio">
-                                        <div class="badge-blue-icon"><i class="fa-solid fa-certificate"></i></div>
-                                        <span>Completion Cert.</span>
-                                    </div>
-                                </div>
-                            </div>
-                        </div>
+                    <!-- Row 4: Quick Actions -->
+                    <div class="dashboard-row">
 
                         <!-- Quick Actions Panel -->
                         <div class="dashboard-card main-card">
@@ -573,29 +450,9 @@ $studyMaterials = [
                             </div>
                             <div class="card-body">
                                 <div class="quick-actions-buttons-grid">
-                                    <button class="btn btn-action-card bg-orange-light" id="qa-submit-activity">
+                                    <button class="btn btn-action-card bg-orange-light" id="qa-submit-activity" data-target-tab="my-activities">
                                         <i class="fa-solid fa-upload"></i>
                                         <span>Submit Activity</span>
-                                    </button>
-                                    <button class="btn btn-action-card bg-blue-light" id="qa-dl-assignment">
-                                        <i class="fa-solid fa-download"></i>
-                                        <span>Download Assignment</span>
-                                    </button>
-                                    <button class="btn btn-action-card bg-purple-light" id="qa-view-study">
-                                        <i class="fa-solid fa-book-open"></i>
-                                        <span>View Study Material</span>
-                                    </button>
-                                    <button class="btn btn-action-card bg-green-light" id="qa-contact-fac">
-                                        <i class="fa-solid fa-envelope"></i>
-                                        <span>Contact Faculty</span>
-                                    </button>
-                                    <button class="btn btn-action-card bg-teal-light" id="qa-open-cal">
-                                        <i class="fa-solid fa-calendar-days"></i>
-                                        <span>Open Calendar</span>
-                                    </button>
-                                    <button class="btn btn-action-card bg-red-light" id="qa-view-report">
-                                        <i class="fa-solid fa-file-pdf"></i>
-                                        <span>View Report</span>
                                     </button>
                                 </div>
                             </div>
@@ -635,127 +492,6 @@ $studyMaterials = [
                         </div>
                     </div>
                 </section>
-
-                <section class="tab-content" id="tab-submitted-activities">
-                    <div class="tab-header-flex">
-                        <h2>My Submitted Activities Portfolio</h2>
-                    </div>
-                    <div class="table-card-wrapper main-card dashboard-card mt-4">
-                        <div class="table-search-header">
-                            <div class="search-box">
-                                <i class="fa-solid fa-magnifying-glass"></i>
-                                <input type="text" id="submitted-search" placeholder="Search submitted activities...">
-                            </div>
-                        </div>
-                        <div class="table-responsive">
-                            <table class="dashboard-table">
-                                <thead>
-                                    <tr>
-                                        <th>Activity Name</th>
-                                        <th>Submitted On</th>
-                                        <th>Awarded Score</th>
-                                        <th>Faculty Feedback</th>
-                                        <th>Evaluation Status</th>
-                                    </tr>
-                                </thead>
-                                <tbody id="submitted-activities-tbody">
-                                    <!-- Dynamic rows -->
-                                </tbody>
-                            </table>
-                        </div>
-                    </div>
-                </section>
-
-                <section class="tab-content" id="tab-pending-activities">
-                    <div class="tab-header-flex">
-                        <h2>Pending Assignments & Tasks</h2>
-                    </div>
-                    <div class="table-card-wrapper main-card dashboard-card mt-4">
-                        <div class="table-responsive">
-                            <table class="dashboard-table">
-                                <thead>
-                                    <tr>
-                                        <th>Unit</th>
-                                        <th>Activity Task</th>
-                                        <th>Subject</th>
-                                        <th>Assigned Faculty</th>
-                                        <th>Due Date</th>
-                                        <th class="text-right">Action</th>
-                                    </tr>
-                                </thead>
-                                <tbody id="pending-activities-tbody">
-                                    <!-- Dynamic rows -->
-                                </tbody>
-                            </table>
-                        </div>
-                    </div>
-                </section>
-
-                <section class="tab-content" id="tab-performance">
-                    <div class="tab-header-flex">
-                        <h2>Marks & Performance Evaluation</h2>
-                    </div>
-                    <div class="grid-columns-2 gap-4 mt-4">
-                        <div class="dashboard-card main-card">
-                            <div class="card-header border-bottom">
-                                <h3>Unit-wise Evaluation Marks</h3>
-                            </div>
-                            <div class="card-body chart-wrapper">
-                                <canvas id="performance-tab-unit-chart" style="max-height: 350px;"></canvas>
-                            </div>
-                        </div>
-                        <div class="dashboard-card main-card">
-                            <div class="card-header border-bottom">
-                                <h3>Submissions Status Distribution</h3>
-                            </div>
-                            <div class="card-body chart-wrapper">
-                                <canvas id="performance-tab-submission-chart" style="max-height: 350px;"></canvas>
-                            </div>
-                        </div>
-                    </div>
-                </section>
-
-                <section class="tab-content" id="tab-calendar">
-                    <div class="tab-header-flex">
-                        <h2>My SAAES Calendar</h2>
-                    </div>
-                    <div class="dashboard-card main-card mt-4">
-                        <div class="card-header border-bottom">
-                            <h3>July & August 2026 Deadlines</h3>
-                        </div>
-                        <div class="card-body">
-                            <p class="mb-4">Visual calendar showing task timelines and important milestones.</p>
-                            <div class="table-responsive">
-                                <table class="dashboard-table">
-                                    <thead>
-                                        <tr>
-                                            <th>Target Date</th>
-                                            <th>Scheduled Course Milestone</th>
-                                            <th>Target Subject</th>
-                                            <th>Assigned Faculty</th>
-                                        </tr>
-                                    </thead>
-                                    <tbody>
-                                        <tr>
-                                            <td><strong>20 Jul 2026</strong></td>
-                                            <td><span class="badge badge-warning">Deadline</span> Number System Conversion</td>
-                                            <td>Digital Logic</td>
-                                            <td>Prof. Kulkarni</td>
-                                        </tr>
-                                        <tr>
-                                            <td><strong>23 Jul 2026</strong></td>
-                                            <td><span class="badge badge-warning">Deadline</span> Boolean Algebra</td>
-                                            <td>Digital Logic</td>
-                                            <td>Prof. Patil</td>
-                                        </tr>
-                                        <tr>
-                                            <td><strong>28 Jul 2026</strong></td>
-                                            <td><span class="badge badge-warning">Deadline</span> Flip-Flop Analysis</td>
-                                            <td>Digital Logic</td>
-                                            <td>Prof. Patil</td>
-                                        </tr>
-                                    </tbody>
-                                </table>
                             </div>
                         </div>
                     </div>
@@ -968,6 +704,6 @@ $studyMaterials = [
     <div class="toast-container" id="toast-container"></div>
 
     <!-- Main Engine Script -->
-    <script src="app.js"></script>
+    <script src="assets/js/script.js"></script>
 </body>
 </html>
