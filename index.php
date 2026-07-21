@@ -19,7 +19,7 @@ require_once __DIR__ . '/includes/header.php';
     <div class="hero-content">
         <h2>Student Activity <br>Assessment & Evaluation System <span>(CIE 2)</span></h2>
         <p>A smart platform to manage activities, submit assignments, evaluate performance and generate final marksheets efficiently and transparently.</p>
-    </div>
+</div>
 
     <!-- Notice Board (Sliding Ticker) -->
     <div class="ticker-wrap">
