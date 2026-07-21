@@ -13,13 +13,13 @@ require_once __DIR__ . '/includes/header.php';
 ?>
 
 <!-- Hero Section -->
-<section id="home" class="hero-section" style="background-image: url('/cie2_system/assets/images/college_building.jpg'), linear-gradient(135deg, #0A1128 0%, #1B2029 100%);">
+<section id="home" class="hero-section" style="background-image: url('assets/images/college_building.jpg'), linear-gradient(135deg, #0A1128 0%, #1B2029 100%);">
     <div class="hero-overlay"></div>
     
     <div class="hero-content">
         <h2>Student Activity <br>Assessment & Evaluation System <span>(CIE 2)</span></h2>
         <p>A smart platform to manage activities, submit assignments, evaluate performance and generate final marksheets efficiently and transparently.</p>
-</div>
+    </div>
 
     <!-- Notice Board (Sliding Ticker) -->
     <div class="ticker-wrap">
@@ -102,7 +102,7 @@ require_once __DIR__ . '/includes/header.php';
     
     <div class="roles-grid">
         <!-- Student Card -->
-        <a href="/cie2_system/auth/login.php?role=Student" class="role-card r-student">
+        <a href="auth/login.php?role=Student" class="role-card r-student">
             <div class="role-icon-box">
                 <i class="fas fa-user-graduate"></i>
             </div>
@@ -111,7 +111,7 @@ require_once __DIR__ . '/includes/header.php';
         </a>
         
         <!-- Faculty Card -->
-        <a href="/cie2_system/auth/login.php?role=Faculty" class="role-card r-faculty">
+        <a href="auth/login.php?role=Faculty" class="role-card r-faculty">
             <div class="role-icon-box">
                 <i class="fas fa-chalkboard-teacher"></i>
             </div>
@@ -120,7 +120,7 @@ require_once __DIR__ . '/includes/header.php';
         </a>
         
         <!-- Parent Card -->
-        <a href="/cie2_system/auth/login.php?role=Parent" class="role-card r-parent">
+        <a href="auth/login.php?role=Parent" class="role-card r-parent">
             <div class="role-icon-box">
                 <i class="fas fa-users"></i>
             </div>
@@ -129,7 +129,7 @@ require_once __DIR__ . '/includes/header.php';
         </a>
         
         <!-- Admin Card -->
-        <a href="/cie2_system/auth/login.php?role=Admin" class="role-card r-admin">
+        <a href="auth/login.php?role=Admin" class="role-card r-admin">
             <div class="role-icon-box">
                 <i class="fas fa-user-shield"></i>
             </div>
@@ -138,7 +138,7 @@ require_once __DIR__ . '/includes/header.php';
         </a>
         
         <!-- HOD Card -->
-        <a href="/cie2_system/auth/login.php?role=HOD" class="role-card r-hod">
+        <a href="auth/login.php?role=HOD" class="role-card r-hod">
             <div class="role-icon-box">
                 <i class="fas fa-id-card-alt"></i>
             </div>
@@ -147,7 +147,7 @@ require_once __DIR__ . '/includes/header.php';
         </a>
         
         <!-- GFM Card -->
-        <a href="/cie2_system/auth/login.php?role=GFM" class="role-card r-gfm">
+        <a href="auth/login.php?role=GFM" class="role-card r-gfm">
             <div class="role-icon-box">
                 <i class="fas fa-users-cog"></i>
             </div>

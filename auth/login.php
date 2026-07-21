@@ -101,14 +101,15 @@ if ($_SERVER["REQUEST_METHOD"] == "POST") {
 
         <form method="POST" action="login.php">
             <div class="input-container">
+                <?php $getRole = $_GET['role'] ?? ''; ?>
                 <select name="role" class="form-select-custom" required>
-                    <option value="" disabled selected>Select Portal Role Context</option>
-                    <option value="Student">Student Portal</option>
-                    <option value="Parent">Parent / Guardian Portal</option>
-                    <option value="Faculty">Faculty Command</option>
-                    <option value="HOD">HOD (Head of Department)</option>
-                    <option value="GFM">GFM (Guardian Faculty Member)</option>
-                    <option value="Admin">System Administrator</option>
+                    <option value="" disabled <?php echo empty($getRole) ? 'selected' : ''; ?>>Select Portal Role Context</option>
+                    <option value="Student" <?php echo $getRole === 'Student' ? 'selected' : ''; ?>>Student Portal</option>
+                    <option value="Parent" <?php echo $getRole === 'Parent' ? 'selected' : ''; ?>>Parent / Guardian Portal</option>
+                    <option value="Faculty" <?php echo $getRole === 'Faculty' ? 'selected' : ''; ?>>Faculty Command</option>
+                    <option value="HOD" <?php echo $getRole === 'HOD' ? 'selected' : ''; ?>>HOD (Head of Department)</option>
+                    <option value="GFM" <?php echo $getRole === 'GFM' ? 'selected' : ''; ?>>GFM (Guardian Faculty Member)</option>
+                    <option value="Admin" <?php echo $getRole === 'Admin' ? 'selected' : ''; ?>>System Administrator</option>
                 </select>
                 <i class="fa-solid fa-user-gear input-icon"></i>
             </div>
