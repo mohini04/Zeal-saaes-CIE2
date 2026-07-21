@@ -96,6 +96,9 @@ $notices = [
         <!-- Header -->
         <header class="main-header">
             <div class="header-left">
+                <button class="mobile-menu-btn" id="mobile-menu-btn" aria-label="Toggle Menu">
+                    <i class="fa-solid fa-bars"></i>
+                </button>
                 <div class="logo-area">
                     <i class="fa-solid fa-graduation-cap logo-icon"></i>
                     <div class="logo-text">

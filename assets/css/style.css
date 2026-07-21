@@ -1317,3 +1317,65 @@ table tbody tr:hover {
     font-size: 0.8rem;
     color: var(--fac-muted);
 }
+
+/* Mobile Responsive Styles */
+.mobile-menu-btn {
+    display: none;
+    background: transparent;
+    border: none;
+    font-size: 1.5rem;
+    color: var(--text-main);
+    cursor: pointer;
+    padding: 0.5rem;
+    margin-right: 0.5rem;
+}
+
+@media (max-width: 768px) {
+    .mobile-menu-btn {
+        display: block;
+    }
+    .sidebar {
+        position: fixed;
+        left: -100%;
+        top: 0;
+        bottom: 0;
+        z-index: 1000;
+        transition: left 0.3s ease;
+        box-shadow: var(--shadow-lg);
+    }
+    .sidebar.active {
+        left: 0;
+    }
+    .header-left .logo-area {
+        gap: 0.5rem;
+    }
+    .header-left .logo-text .college-name {
+        display: none;
+    }
+    .main-header {
+        padding: 0 1rem;
+    }
+    .content-area {
+        padding: 1rem;
+    }
+    .dashboard-row.double-column,
+    .fac-charts-grid {
+        grid-template-columns: 1fr;
+    }
+    .welcome-banner {
+        flex-direction: column;
+        align-items: flex-start;
+        gap: 1rem;
+    }
+    table {
+        display: block;
+        overflow-x: auto;
+        white-space: nowrap;
+    }
+    .header-right {
+        gap: 0.5rem;
+    }
+    .profile-info {
+        display: none;
+    }
+}

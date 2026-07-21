@@ -65,6 +65,9 @@ $deadlines = [
     <!-- Header -->
     <header class="fac-header">
         <div class="fac-header-left">
+            <button class="mobile-menu-btn" id="mobile-menu-btn" aria-label="Toggle Menu" style="margin-right: 15px;">
+                <i class="fa-solid fa-bars"></i>
+            </button>
             <div class="fac-logo-container">
                 <div class="fac-logo"><i class="fa-solid fa-graduation-cap text-primary" style="font-size: 1.5rem; margin-top:6px; margin-left:5px;"></i></div>
                 <div>
@@ -95,7 +98,7 @@ $deadlines = [
 
     <div class="fac-layout">
         <!-- Sidebar -->
-        <aside class="fac-sidebar">
+        <aside class="fac-sidebar sidebar">
             <nav class="fac-nav">
                 <a href="#" class="fac-nav-item active"><i class="fa-solid fa-house"></i> Dashboard</a>
                 <a href="#" class="fac-nav-item"><i class="fa-solid fa-plus"></i> Create Activity</a>
