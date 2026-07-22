@@ -13,8 +13,8 @@
     <!-- FontAwesome for Premium Icons -->
     <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.4.0/css/all.min.css">
     
-    <!-- Custom CSS -->
-    <link rel="stylesheet" href="assets/css/style.css">
+    <!-- Custom CSS (with cache buster) -->
+    <link rel="stylesheet" href="assets/css/style.css?v=<?php echo time(); ?>">
 </head>
 <body>
     <!-- Header/Navbar -->
@@ -23,19 +23,13 @@
             <!-- College Branding (Logo + Text) -->
             <a href="index.php" class="brand-link">
                 <div class="logo-wrapper">
-                    <!-- Custom Premium SVG College Crest -->
-                    <svg viewBox="0 0 100 100" class="logo-svg">
-                        <circle cx="50" cy="50" r="46" fill="none" stroke="#3454D1" stroke-width="4"/>
-                        <circle cx="50" cy="50" r="40" fill="none" stroke="#6C7FE8" stroke-width="1.5" stroke-dasharray="4 2"/>
-                        <path d="M50 20 L25 35 L50 50 L75 35 Z" fill="#3454D1"/>
-                        <path d="M30 45 L30 65 C30 75 50 82 50 82 C50 82 70 75 70 65 L70 45 L50 57 Z" fill="#2941A8"/>
-                        <path d="M25 35 L25 55" fill="none" stroke="#3454D1" stroke-width="2"/>
-                        <circle cx="25" cy="55" r="3" fill="#3454D1"/>
-                        <path d="M42 33 L58 33" stroke="#FFF" stroke-width="2"/>
-                    </svg>
+                    <!-- College Crest Logo Badge -->
+                    <div class="logo-badge">
+                        <i class="fa-solid fa-graduation-cap"></i>
+                    </div>
                 </div>
                 <div class="brand-text">
-                    <span class=" society-name">Zeal Education Society's</span>
+                    <span class="society-name">Zeal Education Society's</span>
                     <h1 class="college-name">Zeal College of Engineering & Research, Pune</h1>
                     <span class="dept-name">Department of Electronics & Computer Engineering</span>
                 </div>

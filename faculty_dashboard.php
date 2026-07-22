@@ -101,8 +101,8 @@ $deadlines = [
         <aside class="fac-sidebar sidebar">
             <nav class="fac-nav">
                 <a href="#" class="fac-nav-item active"><i class="fa-solid fa-house"></i> Dashboard</a>
-                <a href="#" class="fac-nav-item"><i class="fa-solid fa-plus"></i> Create Activity</a>
-                <a href="#" class="fac-nav-item"><i class="fa-solid fa-folder-open"></i> Manage Activities</a>
+                <a href="faculty-dashboard/create_activity.php" class="fac-nav-item"><i class="fa-solid fa-plus"></i> Create Activity</a>
+                <a href="faculty-dashboard/index.php" class="fac-nav-item"><i class="fa-solid fa-folder-open"></i> Manage Activities</a>
                 <a href="#" class="fac-nav-item"><i class="fa-solid fa-inbox"></i> View Submissions</a>
                 <a href="#" class="fac-nav-item"><i class="fa-solid fa-check-double"></i> Evaluate Activities</a>
                 <a href="#" class="fac-nav-item"><i class="fa-solid fa-user-graduate"></i> Students</a>
@@ -120,6 +120,12 @@ $deadlines = [
             <div class="fac-grid">
                 <!-- Left Content (Main Area) -->
                 <div class="fac-col-left">
+                    <?php if (isset($_GET['status']) && $_GET['status'] === 'created'): ?>
+                        <div style="background: rgba(16, 185, 129, 0.15); border: 1px solid #10b981; color: #34d399; padding: 12px 18px; border-radius: 8px; margin-bottom: 20px; font-size: 0.9rem; display: flex; align-items: center; justify-content: space-between;">
+                            <span><i class="fa-solid fa-circle-check me-2"></i> Activity "<strong><?php echo htmlspecialchars($_GET['title'] ?? ''); ?></strong>" created successfully!</span>
+                            <a href="faculty_dashboard.php" style="color: #34d399; text-decoration: none; font-weight: bold;">✕</a>
+                        </div>
+                    <?php endif; ?>
                     
                     <!-- 6 Summary Cards -->
                     <div class="fac-summary-cards">
@@ -172,8 +178,8 @@ $deadlines = [
                         <div class="fac-card-header">
                             <h2>Activity Management</h2>
                             <div>
-                                <button class="fac-btn-primary fac-btn-sm"><i class="fa-solid fa-plus"></i> Create Activity</button>
-                                <button class="fac-btn-outline fac-btn-sm"><i class="fa-regular fa-file-alt"></i> View All Activities</button>
+                                <a href="faculty-dashboard/create_activity.php" class="fac-btn-primary fac-btn-sm text-decoration-none d-inline-flex align-items-center gap-1"><i class="fa-solid fa-plus"></i> Create Activity</a>
+                                <a href="faculty-dashboard/index.php" class="fac-btn-outline fac-btn-sm text-decoration-none d-inline-flex align-items-center gap-1"><i class="fa-regular fa-file-alt"></i> View All Activities</a>
                             </div>
                         </div>
                         <div class="fac-table-wrapper">
@@ -299,11 +305,11 @@ $deadlines = [
                             <h2>Quick Actions</h2>
                         </div>
                         <div class="fac-card-body fac-qa-grid">
-                            <button class="fac-qa-btn"><i class="fa-solid fa-plus"></i> Create Activity</button>
-                            <button class="fac-qa-btn"><i class="fa-solid fa-upload"></i> Publish Marks</button>
-                            <button class="fac-qa-btn"><i class="fa-solid fa-paper-plane"></i> Send Notification</button>
-                            <button class="fac-qa-btn"><i class="fa-solid fa-download"></i> Download Reports</button>
-                            <button class="fac-qa-btn" style="grid-column: span 2;"><i class="fa-solid fa-chart-line"></i> View Analytics</button>
+                            <a href="faculty-dashboard/create_activity.php" class="fac-qa-btn text-decoration-none"><i class="fa-solid fa-plus"></i> Create Activity</a>
+                            <a href="faculty-dashboard/index.php" class="fac-qa-btn text-decoration-none"><i class="fa-solid fa-upload"></i> Publish Marks</a>
+                            <a href="faculty-dashboard/standalone.php" class="fac-qa-btn text-decoration-none"><i class="fa-solid fa-paper-plane"></i> Send Notification</a>
+                            <a href="faculty-dashboard/index.php" class="fac-qa-btn text-decoration-none"><i class="fa-solid fa-download"></i> Download Reports</a>
+                            <a href="faculty-dashboard/standalone.php" class="fac-qa-btn text-decoration-none" style="grid-column: span 2;"><i class="fa-solid fa-chart-line"></i> View Analytics</a>
                         </div>
                     </div>
 

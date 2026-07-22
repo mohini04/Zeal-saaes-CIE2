@@ -147,7 +147,7 @@ $studyMaterials = [
                         <a href="#" class="dropdown-item" id="menu-view-profile"><i class="fa-regular fa-user"></i> My Profile</a>
                         <a href="#" class="dropdown-item" id="menu-view-settings"><i class="fa-solid fa-sliders"></i> Settings</a>
                         <div class="dropdown-divider"></div>
-                        <a href="#" class="dropdown-item text-danger" id="logout-btn"><i class="fa-solid fa-arrow-right-from-bracket"></i> Logout</a>
+                        <a href="auth/logout.php" class="dropdown-item text-danger" id="logout-btn"><i class="fa-solid fa-arrow-right-from-bracket"></i> Logout</a>
                     </div>
                 </div>
             </div>
@@ -176,7 +176,7 @@ $studyMaterials = [
                             <a href="#"><i class="fa-solid fa-book"></i> <span>My Activities</span></a>
                         </li>
                         <li class="nav-item" id="sidebar-logout-btn">
-                            <a href="#"><i class="fa-solid fa-door-open"></i> <span>Logout</span></a>
+                            <a href="auth/logout.php"><i class="fa-solid fa-door-open"></i> <span>Logout</span></a>
                         </li>
                     </ul>
                 </nav>

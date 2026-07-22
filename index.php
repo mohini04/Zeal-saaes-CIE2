@@ -3,17 +3,19 @@
  * index.php
  * SAAES — Landing Page (Entry point)
  */
-session_start();
+if (session_status() === PHP_SESSION_NONE) {
+    session_start();
+}
 
 // Connect database to trigger auto-seeding if empty
-$pdo = require __DIR__ . '/config/db.php';
+$pdo = require_once __DIR__ . '/config/db.php';
 
 // Include layout header
 require_once __DIR__ . '/includes/header.php';
 ?>
 
 <!-- Hero Section -->
-<section id="home" class="hero-section" style="background-image: url('assets/images/college_building.jpg'), linear-gradient(135deg, #0A1128 0%, #1B2029 100%);">
+<section id="home" class="hero-section">
     <div class="hero-overlay"></div>
     
     <div class="hero-content">

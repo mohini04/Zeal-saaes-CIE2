@@ -12,6 +12,19 @@ document.addEventListener('DOMContentLoaded', () => {
         headerDateElement.textContent = new Date().toLocaleDateString(undefined, options);
     }
 
+    // Live Clock Widget for landing page header
+    const liveClock = document.getElementById('live-datetime');
+    if (liveClock) {
+        const updateClock = () => {
+            const now = new Date();
+            const dateStr = now.toLocaleDateString('en-US', { day: '2-digit', month: 'short', year: 'numeric' });
+            const timeStr = now.toLocaleTimeString('en-US', { hour: '2-digit', minute: '2-digit', second: '2-digit', hour12: true });
+            liveClock.textContent = `${dateStr} • ${timeStr}`;
+        };
+        updateClock();
+        setInterval(updateClock, 1000);
+    }
+
     // 2. Tab Navigation Logic (if applicable)
     const navItems = document.querySelectorAll('.nav-item');
     const tabContents = document.querySelectorAll('.tab-content');

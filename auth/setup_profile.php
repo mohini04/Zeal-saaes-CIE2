@@ -24,12 +24,12 @@ $actual_role = $userData['role'] ?? $user_role;
 // Route if setup already completed
 if ((int)($userData['is_first_login'] ?? 0) === 0) {
     switch ($actual_role) {
-        case 'Admin': header("Location: admin_dashboard.php"); break;
-        case 'Faculty': 
-        case 'HOD':
-        case 'GFM': header("Location: faculty_dashboard.php"); break;
-        case 'Parent': header("Location: parent_dashboard.php"); break;
-        default: header("Location: student_dashboard.php"); break;
+        case 'Admin': header("Location: ../admin_dashboard.php"); break;
+        case 'Faculty': header("Location: ../faculty_dashboard.php"); break;
+        case 'HOD': header("Location: ../hod_dashboard.php"); break;
+        case 'GFM': header("Location: ../gfm_dashboard.php"); break;
+        case 'Parent': header("Location: ../parent_dashboard.php"); break;
+        default: header("Location: ../student_dashboard.php"); break;
     }
     exit();
 }
@@ -65,10 +65,12 @@ if ($_SERVER["REQUEST_METHOD"] === "POST") {
                 if ($updateStmt->execute()) {
                     $success = "Passkey and recovery protocol successfully established. Redirecting...";
                     
-                    $targetUrl = "student_dashboard.php";
-                    if ($actual_role === 'Admin') $targetUrl = "admin_dashboard.php";
-                    elseif (in_array($actual_role, ['Faculty', 'HOD', 'GFM'])) $targetUrl = "faculty_dashboard.php";
-                    elseif ($actual_role === 'Parent') $targetUrl = "parent_dashboard.php";
+                    $targetUrl = "../student_dashboard.php";
+                    if ($actual_role === 'Admin') $targetUrl = "../admin_dashboard.php";
+                    elseif ($actual_role === 'Faculty') $targetUrl = "../faculty_dashboard.php";
+                    elseif ($actual_role === 'HOD') $targetUrl = "../hod_dashboard.php";
+                    elseif ($actual_role === 'GFM') $targetUrl = "../gfm_dashboard.php";
+                    elseif ($actual_role === 'Parent') $targetUrl = "../parent_dashboard.php";
 
                     echo "<script>
                             setTimeout(function(){

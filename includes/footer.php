@@ -24,7 +24,7 @@
         </div>
     </footer>
 
-    <!-- Custom Script -->
-    <script src="assets/js/script.js"></script>
+    <!-- Custom Script (with cache buster) -->
+    <script src="assets/js/script.js?v=<?php echo time(); ?>"></script>
 </body>
 </html>
