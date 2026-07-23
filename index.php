@@ -25,7 +25,7 @@ $dashUrl = 'auth/login.php';
 if ($isLoggedIn) {
     switch ($userRole) {
         case 'Admin':   $dashUrl = 'auth/admin_dashboard.php'; break;
-        case 'Faculty': $dashUrl = 'faculty-dashboard/Faculty-dashboard/Faculty_dashboard/index.php'; break;
+        case 'Faculty': $dashUrl = 'faculty_dashboard.php'; break;
         case 'HOD':     $dashUrl = 'hod_dashboard.php'; break;
         case 'GFM':     $dashUrl = 'gfm_dashboard.php'; break;
         case 'Student': $dashUrl = 'student_dashboard.php'; break;

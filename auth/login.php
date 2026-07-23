@@ -39,9 +39,9 @@ if ($_SERVER["REQUEST_METHOD"] == "POST") {
                     case 'Admin': header("Location: admin_dashboard.php"); break;
                     case 'Faculty': 
                     case 'HOD':
-                    case 'GFM': header("Location: ../faculty-dashboard/Faculty-dashboard/Faculty_dashboard/index.php"); break;
-                    case 'Student': header("Location: ../student_dashboard.php"); break;
-                    case 'Parent': header("Location: ../parent_dashboard.php"); break;
+                    case 'GFM': header("Location: faculty_dashboard.php"); break;
+                    case 'Student': header("Location: student_dashboard.php"); break;
+                    case 'Parent': header("Location: parent_dashboard.php"); break;
                     default: header("Location: login.php"); break;
                 }
                 exit();
