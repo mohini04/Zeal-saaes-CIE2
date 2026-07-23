@@ -1,8 +1,30 @@
+<?php
+if (session_status() === PHP_SESSION_NONE) {
+    session_start();
+}
+$isLoggedIn = isset($_SESSION['user_id']) && !empty($_SESSION['user_id']);
+$userRole   = $_SESSION['role'] ?? '';
+$userName   = $_SESSION['user_name'] ?? 'User';
+
+$dashUrl = 'auth/login.php';
+if ($isLoggedIn) {
+    switch ($userRole) {
+        case 'Admin':   $dashUrl = 'auth/admin_dashboard.php'; break;
+        case 'Faculty': $dashUrl = 'faculty-dashboard/Faculty-dashboard/Faculty_dashboard/index.php'; break;
+        case 'HOD':     $dashUrl = 'hod_dashboard.php'; break;
+        case 'GFM':     $dashUrl = 'gfm_dashboard.php'; break;
+        case 'Student': $dashUrl = 'student_dashboard.php'; break;
+        case 'Parent':  $dashUrl = 'parent_dashboard.php'; break;
+        default:        $dashUrl = 'auth/login.php'; break;
+    }
+}
+?>
 <!DOCTYPE html>
 <html lang="en">
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <meta name="description" content="Student Activity Assessment & Evaluation System (CIE 2) - Zeal College of Engineering & Research, Pune">
     <title>CIE 2 | Zeal College of Engineering & Research</title>
     
     <!-- Google Fonts -->
@@ -24,7 +46,7 @@
             <a href="index.php" class="brand-link">
                 <div class="logo-wrapper">
                     <!-- Custom Premium SVG College Crest -->
-                    <svg viewBox="0 0 100 100" class="logo-svg">
+                    <svg viewBox="0 0 100 100" class="logo-svg" width="46" height="46" style="width:46px; height:46px; max-width:46px; max-height:46px;">
                         <circle cx="50" cy="50" r="46" fill="none" stroke="#3454D1" stroke-width="4"/>
                         <circle cx="50" cy="50" r="40" fill="none" stroke="#6C7FE8" stroke-width="1.5" stroke-dasharray="4 2"/>
                         <path d="M50 20 L25 35 L50 50 L75 35 Z" fill="#3454D1"/>
@@ -35,7 +57,7 @@
                     </svg>
                 </div>
                 <div class="brand-text">
-                    <span class=" society-name">Zeal Education Society's</span>
+                    <span class="society-name">Zeal Education Society's</span>
                     <h1 class="college-name">Zeal College of Engineering & Research, Pune</h1>
                     <span class="dept-name">Department of Electronics & Computer Engineering</span>
                 </div>
@@ -45,6 +67,7 @@
             <nav class="nav-menu">
                 <a href="index.php#home" class="nav-link">Home</a>
                 <a href="index.php#features" class="nav-link">Features</a>
+                <a href="index.php#stats" class="nav-link">Statistics</a>
                 <a href="index.php#roles" class="nav-link">User Roles</a>
             </nav>
 
@@ -56,12 +79,21 @@
                     <span id="live-datetime">-- --- ---- --:--:-- --</span>
                 </div>
                 
-                <a href="index.php#roles" class="btn btn-outline">
-                    <i class="fas fa-user-plus btn-icon"></i> Register
-                </a>
-                <a href="auth/login.php" class="btn btn-primary">
-                    <i class="fas fa-sign-in-alt btn-icon"></i> Login
-                </a>
+                <?php if ($isLoggedIn): ?>
+                    <a href="<?php echo htmlspecialchars($dashUrl); ?>" class="btn btn-primary" title="Go to your dashboard">
+                        <i class="fas fa-gauge-high btn-icon"></i> Dashboard
+                    </a>
+                    <a href="auth/logout.php" class="btn btn-outline" title="Log out of account">
+                        <i class="fas fa-sign-out-alt btn-icon"></i> Logout
+                    </a>
+                <?php else: ?>
+                    <a href="auth/register.php" class="btn btn-outline">
+                        <i class="fas fa-user-plus btn-icon"></i> Register
+                    </a>
+                    <a href="auth/login.php" class="btn btn-primary">
+                        <i class="fas fa-sign-in-alt btn-icon"></i> Login
+                    </a>
+                <?php endif; ?>
             </div>
         </div>
     </header>
