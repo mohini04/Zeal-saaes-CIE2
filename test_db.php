@@ -27,35 +27,6 @@ try {
         `is_first_login` TINYINT(1) DEFAULT 1,
         `created_at` TIMESTAMP DEFAULT CURRENT_TIMESTAMP
     ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci;");
-
-    $pdo->exec("CREATE TABLE IF NOT EXISTS `activities` (
-        `id` INT AUTO_INCREMENT PRIMARY KEY,
-        `title` VARCHAR(255) NOT NULL,
-        `type` VARCHAR(50) NOT NULL,
-        `course` VARCHAR(255) NOT NULL,
-        `subject` VARCHAR(100) NOT NULL,
-        `unit` VARCHAR(50) NOT NULL,
-        `batch` VARCHAR(100) NOT NULL,
-        `deadline` DATETIME NOT NULL,
-        `total_marks` INT NOT NULL,
-        `status` VARCHAR(50) DEFAULT 'Active',
-        `description` TEXT,
-        `submissions_count` INT DEFAULT 0,
-        `total_students` INT DEFAULT 45,
-        `created_at` TIMESTAMP DEFAULT CURRENT_TIMESTAMP
-    ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci;");
-
-    $pdo->exec("CREATE TABLE IF NOT EXISTS `activity_submissions` (
-        `id` INT AUTO_INCREMENT PRIMARY KEY,
-        `activity_id` INT NOT NULL,
-        `roll` VARCHAR(50) NOT NULL,
-        `name` VARCHAR(255) NOT NULL,
-        `submitted_at` DATETIME NOT NULL,
-        `file` VARCHAR(255) NOT NULL,
-        `score` INT DEFAULT NULL,
-        `status` VARCHAR(100) NOT NULL,
-        FOREIGN KEY (`activity_id`) REFERENCES `activities`(`id`) ON DELETE CASCADE
-    ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci;");
 } catch (PDOException $e) {
     die('Database connection failed: ' . $e->getMessage());
 }
@@ -66,5 +37,12 @@ if ($conn->connect_error) {
     die("MySQLi connection failed: " . $conn->connect_error);
 }
 
-// Return the PDO instance for includes that expect it
-return $pdo;
+$result = $conn->query("DESCRIBE users");
+if ($result) {
+    while($row = $result->fetch_assoc()) {
+        print_r($row);
+    }
+} else {
+    echo "Error: " . $conn->error;
+}
+?>

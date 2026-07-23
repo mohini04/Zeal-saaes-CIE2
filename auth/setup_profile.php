@@ -27,7 +27,7 @@ if ((int)($userData['is_first_login'] ?? 0) === 0) {
         case 'Admin': header("Location: admin_dashboard.php"); break;
         case 'Faculty': 
         case 'HOD':
-        case 'GFM': header("Location: ../faculty-dashboard/Faculty-dashboard/Faculty_dashboard/index.php"); break;
+        case 'GFM': header("Location: ../faculty-dashboard/index.php"); break;
         case 'Parent': header("Location: parent_dashboard.php"); break;
         default: header("Location: student_dashboard.php"); break;
     }
@@ -67,7 +67,7 @@ if ($_SERVER["REQUEST_METHOD"] === "POST") {
                     
                     $targetUrl = "student_dashboard.php";
                     if ($actual_role === 'Admin') $targetUrl = "admin_dashboard.php";
-                    elseif (in_array($actual_role, ['Faculty', 'HOD', 'GFM'])) $targetUrl = "../faculty-dashboard/Faculty-dashboard/Faculty_dashboard/index.php";
+                    elseif (in_array($actual_role, ['Faculty', 'HOD', 'GFM'])) $targetUrl = "../faculty_dashboard.php";
                     elseif ($actual_role === 'Parent') $targetUrl = "parent_dashboard.php";
 
                     echo "<script>
