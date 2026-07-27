@@ -700,14 +700,22 @@ $deadlines = [
                 <button class="close-modal-btn" id="close-faculty-modal-btn"><i class="fa-solid fa-xmark"></i></button>
             </div>
             <div class="modal-body">
-                <form id="onboard-faculty-form">
+                <form id="onboard-faculty-form" method="POST" action="api/add_faculty.php">
                     <div class="form-group mb-3">
                         <label class="form-label" for="fac-name">Faculty Name</label>
-                        <input type="text" id="fac-name" class="form-control" placeholder="e.g. Prof. R. S. Mane" required>
+                        <input type="text" id="fac-name" name="name" class="form-control" placeholder="e.g. Prof. R. S. Mane" required>
                     </div>
                     <div class="form-group mb-3">
                         <label class="form-label" for="fac-subject">Assigned Coordinator Subject</label>
-                        <input type="text" id="fac-subject" class="form-control" placeholder="e.g. Signals & Systems" required>
+                        <input type="text" id="fac-subject" name="subject" class="form-control" placeholder="e.g. Signals & Systems" required>
+                    </div>
+                    <div class="form-group mb-3">
+                        <label class="form-label" for="fac-username">Faculty Username</label>
+                        <input type="text" id="fac-username" name="username" class="form-control" placeholder="e.g. profmane" required>
+                    </div>
+                    <div class="form-group mb-3">
+                        <label class="form-label" for="fac-password">Password</label>
+                        <input type="password" id="fac-password" name="password" class="form-control" placeholder="Set temporary passkey" required>
                     </div>
                     <div class="modal-footer">
                         <button type="button" class="btn btn-secondary-outline" id="btn-cancel-onboard">Cancel</button>

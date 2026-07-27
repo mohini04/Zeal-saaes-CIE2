@@ -37,11 +37,19 @@ if ($_SERVER["REQUEST_METHOD"] == "POST") {
                 // Role Routing
                 switch ($user['role']) {
                     case 'Admin': header("Location: admin_dashboard.php"); break;
+<<<<<<< HEAD
                     case 'Faculty': header("Location: ../faculty_dashboard.php"); break;
                     case 'HOD': header("Location: ../hod_dashboard.php"); break;
                     case 'GFM': header("Location: ../gfm_dashboard.php"); break;
                     case 'Student': header("Location: ../student_dashboard.php"); break;
                     case 'Parent': header("Location: ../parent_dashboard.php"); break;
+=======
+                    case 'Faculty': 
+                    case 'HOD':
+                    case 'GFM': header("Location: faculty_dashboard.php"); break;
+                    case 'Student': header("Location: student_dashboard.php"); break;
+                    case 'Parent': header("Location: parent_dashboard.php"); break;
+>>>>>>> c111bf448285e9533500973e107c27a15c1da2a1
                     default: header("Location: login.php"); break;
                 }
                 exit();

@@ -115,7 +115,7 @@ require_once __DIR__ . '/includes/header.php';
                     <i class="fas fa-gauge-high btn-icon"></i> Access Dashboard
                 </a>
             <?php else: ?>
-                <a href="auth/login.php" class="btn btn-primary btn-lg">
+                <a href="auth/student_login.php" class="btn btn-primary btn-lg">
                     <i class="fas fa-sign-in-alt btn-icon"></i> Portal Login
                 </a>
                 <a href="auth/register.php" class="btn btn-outline btn-lg">
@@ -253,7 +253,7 @@ require_once __DIR__ . '/includes/header.php';
     
     <div class="roles-grid">
         <!-- Student Card -->
-        <a href="auth/login.php?role=Student" class="role-card r-student">
+        <a href="auth/student_login.php" class="role-card r-student">
             <div class="role-icon-box">
                 <i class="fas fa-user-graduate"></i>
             </div>
@@ -262,7 +262,7 @@ require_once __DIR__ . '/includes/header.php';
         </a>
         
         <!-- Faculty Card -->
-        <a href="auth/login.php?role=Faculty" class="role-card r-faculty">
+        <a href="auth/faculty_login.php" class="role-card r-faculty">
             <div class="role-icon-box">
                 <i class="fas fa-chalkboard-teacher"></i>
             </div>
@@ -271,7 +271,7 @@ require_once __DIR__ . '/includes/header.php';
         </a>
         
         <!-- Parent Card -->
-        <a href="auth/login.php?role=Parent" class="role-card r-parent">
+        <a href="auth/parent_login.php" class="role-card r-parent">
             <div class="role-icon-box">
                 <i class="fas fa-users"></i>
             </div>
@@ -280,7 +280,7 @@ require_once __DIR__ . '/includes/header.php';
         </a>
         
         <!-- Admin Card -->
-        <a href="auth/login.php?role=Admin" class="role-card r-admin">
+        <a href="auth/admin_login.php" class="role-card r-admin">
             <div class="role-icon-box">
                 <i class="fas fa-user-shield"></i>
             </div>
@@ -289,7 +289,7 @@ require_once __DIR__ . '/includes/header.php';
         </a>
         
         <!-- HOD Card -->
-        <a href="auth/login.php?role=HOD" class="role-card r-hod">
+        <a href="auth/hod_login.php" class="role-card r-hod">
             <div class="role-icon-box">
                 <i class="fas fa-id-card-alt"></i>
             </div>
@@ -298,7 +298,7 @@ require_once __DIR__ . '/includes/header.php';
         </a>
         
         <!-- GFM Card -->
-        <a href="auth/login.php?role=GFM" class="role-card r-gfm">
+        <a href="auth/gfm_login.php" class="role-card r-gfm">
             <div class="role-icon-box">
                 <i class="fas fa-users-cog"></i>
             </div>
