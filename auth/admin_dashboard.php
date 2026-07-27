@@ -3,7 +3,12 @@ if (session_status() === PHP_SESSION_NONE) {
     session_start();
 }
 
-if (!isset($_SESSION['user_id']) || $_SESSION['role'] !== 'Admin') {
+// Anti-caching headers to prevent browser back-button access after logout
+header("Cache-Control: no-cache, no-store, must-revalidate");
+header("Pragma: no-cache");
+header("Expires: 0");
+
+if (!isset($_SESSION['user_id']) || strtolower($_SESSION['role'] ?? '') !== 'admin') {
     header("Location: login.php");
     exit();
 }
@@ -12,8 +17,11 @@ require_once(__DIR__ . '/../config/db.php');
 
 // AUTO-HEAL: Sync missing emails in users table for seamless recovery
 function healUserEmails($conn) {
-    // 1. Ensure email column exists
+    // 1. Ensure email and department columns exist
     @mysqli_query($conn, "ALTER TABLE `users` ADD COLUMN IF NOT EXISTS `email` VARCHAR(150) DEFAULT NULL");
+    @mysqli_query($conn, "ALTER TABLE `users` ADD COLUMN IF NOT EXISTS `department` VARCHAR(150) DEFAULT NULL");
+    @mysqli_query($conn, "ALTER TABLE `users` ADD COLUMN IF NOT EXISTS `academic_year` VARCHAR(50) DEFAULT NULL");
+    @mysqli_query($conn, "ALTER TABLE `users` ADD COLUMN IF NOT EXISTS `division` VARCHAR(50) DEFAULT NULL");
 
     // 2. Fill empty user emails with username if username is formatted like an email
     @mysqli_query($conn, "UPDATE `users` SET `email` = `username` WHERE (`email` IS NULL OR `email` = '') AND `username` LIKE '%@%'");
@@ -48,17 +56,20 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
             $student_name = trim($reqData['full_name']);
             $student_email= strtolower(trim($reqData['email']));
             $parent_name  = trim($reqData['parent_name'] ?? ($student_name . " Guardian"));
-            $parent_email = strtolower(trim($reqData['parent_email']));
+            $parent_email = strtolower(trim($reqData['parent_email'] ?? ''));
+            $dept_name    = trim($reqData['department'] ?? '');
+            $academic_year= trim($reqData['academic_year'] ?? 'FY');
+            $division     = trim($reqData['division'] ?? 'A');
             $defaultPass  = password_hash('Zeal@2026', PASSWORD_BCRYPT);
 
             // 1. Create Student Account (Username = PRN, Email = student_email)
-            $createStudent = $conn->prepare("INSERT INTO users (name, username, email, password, role, is_first_login) VALUES (?, ?, ?, ?, 'Student', 1)");
-            $createStudent->bind_param("ssss", $student_name, $prn, $student_email, $defaultPass);
+            $createStudent = $conn->prepare("INSERT IGNORE INTO users (name, username, email, department, academic_year, division, password, role, is_first_login) VALUES (?, ?, ?, ?, ?, ?, ?, 'Student', 1)");
+            $createStudent->bind_param("sssssss", $student_name, $prn, $student_email, $dept_name, $academic_year, $division, $defaultPass);
             $createStudent->execute();
             $createStudent->close();
 
             // 2. Create Linked Parent Account (Username = Parent Email, Email = Parent Email)
-            $createParent = $conn->prepare("INSERT INTO users (name, username, email, password, role, linked_student_prn, is_first_login) VALUES (?, ?, ?, ?, 'Parent', ?, 1)");
+            $createParent = $conn->prepare("INSERT IGNORE INTO users (name, username, email, password, role, linked_student_prn, is_first_login) VALUES (?, ?, ?, ?, 'Parent', ?, 1)");
             $createParent->bind_param("sssss", $parent_name, $parent_email, $parent_email, $defaultPass, $prn);
             $createParent->execute();
             $createParent->close();
@@ -70,7 +81,7 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
             $upReq->close();
 
             $flashMessage = "Dual IDPs issued! Student PRN: $prn | Parent Email: $parent_email (Default Passkey: Zeal@2026)";
-            $flashClass = "alert-success bg-dark text-success border-success";
+            $flashClass = "alert-success";
         }
     }
 
@@ -79,6 +90,7 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
         $staff_name = trim($_POST['staff_name'] ?? '');
         $username   = strtolower(trim($_POST['staff_username'] ?? ''));
         $staff_role = trim($_POST['staff_role'] ?? '');
+        $staff_dept = trim($_POST['staff_department'] ?? '');
         $defaultPass = password_hash('Zeal@2026', PASSWORD_BCRYPT);
 
         $allowedStaffRoles = ['Faculty', 'HOD', 'GFM', 'Admin'];
@@ -89,23 +101,24 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
             $checkU->execute();
             if ($checkU->get_result()->num_rows > 0) {
                 $flashMessage = "Account creation aborted: Username/Email '$username' is already registered.";
-                $flashClass = "alert-danger bg-dark text-danger border-danger";
+                $flashClass = "alert-danger";
             } else {
-                $createStaff = $conn->prepare("INSERT INTO users (name, username, email, password, role, is_first_login) VALUES (?, ?, ?, ?, ?, 1)");
-                $createStaff->bind_param("sssss", $staff_name, $username, $username, $defaultPass, $staff_role);
+                $createStaff = $conn->prepare("INSERT INTO users (name, username, email, department, password, role, is_first_login) VALUES (?, ?, ?, ?, ?, ?, 1)");
+                $createStaff->bind_param("ssssss", $staff_name, $username, $username, $staff_dept, $defaultPass, $staff_role);
                 if ($createStaff->execute()) {
-                    $flashMessage = "Staff IDP provisioned successfully! Role: $staff_role | Login: $username | Default Passkey: Zeal@2026";
-                    $flashClass = "alert-success bg-dark text-success border-success";
+                    $deptStr = !empty($staff_dept) ? " | Branch: $staff_dept" : "";
+                    $flashMessage = "Staff account created successfully! Role: $staff_role$deptStr | Login: $username | Default Passkey: Zeal@2026";
+                    $flashClass = "alert-success";
                 } else {
-                    $flashMessage = "Error writing staff IDP user record.";
-                    $flashClass = "alert-danger bg-dark text-danger border-danger";
+                    $flashMessage = "Error writing staff user record.";
+                    $flashClass = "alert-danger";
                 }
                 $createStaff->close();
             }
             $checkU->close();
         } else {
             $flashMessage = "Please select a valid staff role and complete all fields.";
-            $flashClass = "alert-warning bg-dark text-warning border-warning";
+            $flashClass = "alert-warning";
         }
     }
 
@@ -116,7 +129,7 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
         $rejStmt->execute();
         $rejStmt->close();
         $flashMessage = "Request rejected.";
-        $flashClass = "alert-warning bg-dark text-warning border-warning";
+        $flashClass = "alert-warning";
     }
 
     if ($action === 'delete_user') {
@@ -126,8 +139,8 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
             $stmt->bind_param("i", $targetUserId);
             $stmt->execute();
             $stmt->close();
-            $flashMessage = "User account purged.";
-            $flashClass = "alert-success bg-dark text-success border-success";
+            $flashMessage = "User account deleted.";
+            $flashClass = "alert-success";
         }
     }
 }
@@ -149,9 +162,9 @@ if ($reqQ && mysqli_num_rows($reqQ) > 0) {
     while ($r = mysqli_fetch_assoc($reqQ)) { $requestsList[] = $r; }
 }
 
-// Fetch System Users List with explicit Email field
+// Fetch System Users List with explicit Email and Department fields
 $userList = [];
-$userQ = @mysqli_query($conn, "SELECT user_id, name, username, email, role, is_first_login FROM users ORDER BY user_id DESC LIMIT 30");
+$userQ = @mysqli_query($conn, "SELECT user_id, name, username, email, department, role, is_first_login FROM users ORDER BY user_id DESC LIMIT 30");
 if ($userQ && mysqli_num_rows($userQ) > 0) {
     while ($r = mysqli_fetch_assoc($userQ)) { $userList[] = $r; }
 }
@@ -162,219 +175,382 @@ if ($userQ && mysqli_num_rows($userQ) > 0) {
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>ZCOER // SAAES — Admin Command</title>
-    <link href="https://cdn.jsdelivr.net/npm/bootstrap@5.3.0/dist/css/bootstrap.min.css" rel="stylesheet">
+    <title>Admin Dashboard | SAAES</title>
+    
+    <!-- Professional Fonts matching Landing Page -->
+    <link href="https://fonts.googleapis.com/css2?family=Space+Grotesk:wght@400;600;700&family=JetBrains+Mono:wght@100;400;700;800&family=Inter:wght@400;500;600&display=swap" rel="stylesheet">
     <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.4.0/css/all.min.css">
-    <link href="https://fonts.googleapis.com/css2?family=Plus+Jakarta+Sans:wght@300;400;500;600;700;800&family=JetBrains+Mono:wght@300;400;500&family=Space+Grotesk:wght@500;600;700&display=swap" rel="stylesheet">
 
     <style>
-        :root { --bg-base: #010103; --panel-bg: rgba(8, 8, 11, 0.88); --input-bg: rgba(16, 18, 23, 0.75); --silver-border: rgba(255, 255, 255, 0.1); --silver-text: #94a3b8; }
-        * { font-family: 'Plus Jakarta Sans', sans-serif; letter-spacing: -0.01em; box-sizing: border-box; }
-        body { background-color: var(--bg-base); color: #fff; min-height: 100vh; margin: 0; position: relative; overflow-x: hidden; }
-        #cometField { position: fixed; top: 0; left: 0; width: 100%; height: 100%; z-index: 0; pointer-events: none; }
-        .dashboard-container { position: relative; z-index: 5; padding: 40px; }
-        .glass-card { background: var(--panel-bg); border: 1px solid var(--silver-border); border-radius: 16px; backdrop-filter: blur(24px); box-shadow: 0 30px 60px -20px rgba(0,0,0,0.9); margin-bottom: 24px; padding: 24px; }
-        .eyebrow { font-family: 'JetBrains Mono', monospace; font-size: 0.68rem; text-transform: uppercase; letter-spacing: 0.14em; color: var(--silver-text); }
-        .form-control-custom, .form-select-custom { background-color: var(--input-bg); border: 1px solid var(--silver-border); color: #f1f5f9; border-radius: 8px; padding: 10px 14px; font-size: 0.85rem; width: 100%; }
-        .form-control-custom:focus, .form-select-custom:focus { border-color: rgba(255, 255, 255, 0.35); outline: none; background-color: var(--input-bg); color: #fff; }
-        .form-select-custom option { background-color: #0b0c0e; color: #f1f5f9; }
-        .btn-action-silver { background: linear-gradient(180deg, #ffffff 0%, #cbd5e1 100%); color: #050508; border: none; border-radius: 8px; padding: 8px 14px; font-weight: 700; font-size: 0.8rem; text-decoration: none; }
-        .btn-action-silver:hover { background: #ffffff; box-shadow: 0 4px 16px rgba(255, 255, 255, 0.2); }
-        .btn-outline-silver { background: transparent; border: 1px solid var(--silver-border); color: #fff; border-radius: 8px; padding: 8px 14px; font-weight: 600; font-size: 0.8rem; }
-        .table-dark-custom { --bs-table-bg: transparent; color: #fff; }
-        .table-dark-custom th { border-bottom: 1px solid var(--silver-border); color: var(--silver-text); font-family: 'JetBrains Mono', monospace; font-size: 0.7rem; text-transform: uppercase; }
-        .table-dark-custom td { border-bottom: 1px solid rgba(255,255,255,0.04); vertical-align: middle; font-size: 0.85rem; }
+        :root {
+            --bg-base: #ffffff;
+            --bg-panel: #fcfcfd;
+            --text-dark: #0f172a;
+            --text-tech: #475569;
+            --text-light: #94a3b8;
+            
+            --accent-main: #7c3aed; /* Electric purple */
+            --accent-glow: #a855f7;
+            
+            --grid-size: 40px;
+            --border-harsh: 2px solid var(--text-dark);
+            
+            --font-head: 'Space Grotesk', sans-serif;
+            --font-mono: 'JetBrains Mono', monospace;
+            --font-body: 'Inter', sans-serif;
+        }
+
+        * { margin: 0; padding: 0; box-sizing: border-box; }
+
+        body {
+            background-color: var(--bg-base);
+            /* Architectural Blueprint Grid */
+            background-image: 
+                linear-gradient(rgba(124, 58, 237, 0.08) 1px, transparent 1px),
+                linear-gradient(90deg, rgba(124, 58, 237, 0.08) 1px, transparent 1px);
+            background-size: var(--grid-size) var(--grid-size);
+            background-position: center center;
+            color: var(--text-dark);
+            font-family: var(--font-body);
+            min-height: 100vh;
+            overflow-x: hidden;
+            
+            /* PIXELATED PURPLE CUSTOM CURSOR */
+            cursor: url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' width='32' height='32' viewBox='0 0 32 32' shape-rendering='crispEdges'%3E%3Cpath d='M4 4v20l5-5 4 8 4-2-4-8h8L4 4z' fill='%237c3aed' stroke='white' stroke-width='2'/%3E%3C/svg%3E") 4 4, auto;
+            -webkit-font-smoothing: antialiased;
+        }
+
+        /* PIXELATED HOVER CURSOR */
+        a, button, input, select, textarea, .interactive {
+            cursor: url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' width='32' height='32' viewBox='0 0 32 32' shape-rendering='crispEdges'%3E%3Cpath d='M4 4v20l5-5 4 8 4-2-4-8h8L4 4z' fill='%23a855f7' stroke='%230f172a' stroke-width='2.5'/%3E%3C/svg%3E") 4 4, pointer !important;
+        }
+
+        ::selection { background: var(--accent-main); color: #fff; }
+        a { text-decoration: none; color: inherit; }
+
+        /* ================= HEADER ================= */
+        .tech-header {
+            background: rgba(255, 255, 255, 0.95);
+            border-bottom: var(--border-harsh);
+            padding: 1.5rem 2.5rem;
+            display: flex; justify-content: space-between; align-items: center;
+            position: sticky; top: 0; z-index: 100;
+        }
+        .sys-logo {
+            display: flex; align-items: center; gap: 1rem;
+            font-family: var(--font-head); font-weight: 700; font-size: 1.4rem;
+            text-transform: uppercase;
+        }
+        .sys-logo i { color: var(--accent-main); }
+        .sys-logo .line { width: 30px; height: 2px; background: var(--text-dark); transform: skewX(-45deg); }
+
+        .dashboard-container {
+            max-width: 1400px; margin: 0 auto; padding: 3rem 2.5rem; flex: 1;
+        }
+
+        /* ================= MODULE CARDS ================= */
+        .module-card {
+            background: var(--bg-panel); border: 2px solid var(--text-dark);
+            padding: 2.5rem; margin-bottom: 2rem; position: relative; transition: transform 0.2s, box-shadow 0.2s;
+            clip-path: polygon(0 0, calc(100% - 20px) 0, 100% 20px, 100% 100%, 20px 100%, 0 calc(100% - 20px));
+        }
+        .module-card::before { content: ''; position: absolute; top: 0; left: 0; width: 30px; height: 30px; border-right: 2px solid var(--text-dark); border-bottom: 2px solid var(--text-dark); }
+        .module-card:hover { transform: translate(-4px, -4px); box-shadow: 10px 10px 0px rgba(124, 58, 237, 1); border-color: var(--accent-main); }
+        
+        .mod-title { font-family: var(--font-head); font-size: 1.5rem; font-weight: 700; margin-bottom: 1rem; text-transform: uppercase; display: flex; align-items: center; gap: 0.75rem;}
+        .mod-title i { color: var(--accent-main); }
+
+        /* ================= TELEMETRY STATS ================= */
+        .telemetry-grid { display: grid; grid-template-columns: repeat(4, 1fr); border: 2px solid var(--text-dark); margin-bottom: 3rem; background: var(--bg-panel);}
+        .tel-block { padding: 2rem 1.5rem; border-right: 2px solid var(--text-dark); display: flex; flex-direction: column; justify-content: center; }
+        .tel-block:last-child { border-right: none; }
+        .tel-val { font-family: var(--font-head); font-size: 3rem; font-weight: 700; color: var(--accent-main); line-height: 1; margin-bottom: 0.5rem; }
+        .tel-label { font-family: var(--font-mono); font-size: 0.8rem; font-weight: 700; text-transform: uppercase; color: var(--text-tech);}
+
+        /* ================= METADATA TAGS ================= */
+        .sys-tag { 
+            font-family: var(--font-mono); font-size: 0.75rem; font-weight: 700; padding: 0.3rem 0.6rem; 
+            border: 1px solid var(--text-dark); color: var(--text-dark); text-transform: uppercase; display: inline-flex; align-items: center; gap: 0.4rem;
+        }
+        .sys-tag.accent { background: rgba(124, 58, 237, 0.05); color: var(--accent-main); border-color: var(--accent-main); }
+        .sys-tag.warning { background: rgba(245, 158, 11, 0.05); color: #f59e0b; border-color: #f59e0b; }
+
+        /* ================= BUTTONS ================= */
+        .btn-tech {
+            font-family: var(--font-mono); font-weight: 700; font-size: 0.85rem; text-transform: uppercase;
+            padding: 0.8rem 1.5rem; display: inline-flex; align-items: center; justify-content: center; gap: 0.5rem;
+            background: var(--bg-base); color: var(--text-dark); border: 2px solid var(--text-dark);
+            position: relative; overflow: hidden; cursor: pointer;
+            clip-path: polygon(10px 0, 100% 0, 100% calc(100% - 10px), calc(100% - 10px) 100%, 0 100%, 0 10px);
+            transition: color 0.3s;
+        }
+        .btn-tech::before {
+            content: ''; position: absolute; top: 0; left: -100%; width: 100%; height: 100%;
+            background: var(--accent-main); z-index: -1; transition: left 0.3s cubic-bezier(0.7, 0, 0.3, 1);
+        }
+        .btn-tech:hover { color: #fff; border-color: var(--accent-main); }
+        .btn-tech:hover::before { left: 0; }
+        
+        .btn-tech.danger { border-color: #ef4444; color: #ef4444; }
+        .btn-tech.danger::before { background: #ef4444; }
+        .btn-tech.danger:hover { color: #fff; border-color: #ef4444; }
+
+        .btn-action {
+            background: var(--text-dark); color: #fff; border: none; padding: 0.6rem 1rem;
+            font-family: var(--font-mono); font-weight: 700; font-size: 0.8rem; cursor: pointer;
+            clip-path: polygon(8px 0, 100% 0, 100% calc(100% - 8px), calc(100% - 8px) 100%, 0 100%, 0 8px);
+            transition: background 0.3s;
+        }
+        .btn-action:hover { background: var(--accent-main); }
+
+        .btn-outline {
+            background: transparent; color: var(--text-dark); border: 2px solid var(--text-dark); padding: 0.6rem 1rem;
+            font-family: var(--font-mono); font-weight: 700; font-size: 0.8rem; cursor: pointer;
+            clip-path: polygon(8px 0, 100% 0, 100% calc(100% - 8px), calc(100% - 8px) 100%, 0 100%, 0 8px);
+            transition: color 0.3s, background 0.3s;
+        }
+        .btn-outline.danger { color: #ef4444; border-color: #ef4444; }
+        .btn-outline.danger:hover { background: #ef4444; color: #fff; }
+
+        /* ================= FORMS ================= */
+        .form-label { font-family: var(--font-mono); font-size: 0.85rem; font-weight: 700; text-transform: uppercase; color: var(--text-dark); margin-bottom: 0.5rem; display: block;}
+        .form-control-custom, .form-select-custom {
+            width: 100%; padding: 0.85rem 1.2rem; background: var(--bg-base); border: 1px solid var(--text-tech);
+            color: var(--text-dark); font-family: var(--font-body); font-size: 0.95rem; outline: none; transition: border 0.2s;
+            border-radius: 0; -webkit-appearance: none;
+        }
+        .form-control-custom:focus, .form-select-custom:focus { border-color: var(--text-dark); border-width: 2px; padding: calc(0.85rem - 1px) calc(1.2rem - 1px); }
+
+        /* Grid for Form */
+        .form-grid { display: grid; grid-template-columns: 1fr 1fr 1fr 1.5fr auto; gap: 1rem; align-items: flex-end; }
+
+        /* ================= TABLES ================= */
+        .table-responsive { overflow-x: auto; background: var(--bg-base); border: 2px solid var(--text-dark); margin-bottom: 1rem; }
+        .custom-table { width: 100%; border-collapse: collapse; text-align: left; }
+        .custom-table th, .custom-table td { padding: 1rem 1.5rem; border-bottom: 1px solid var(--text-tech); font-size: 0.9rem; }
+        .custom-table th { background: var(--bg-panel); color: var(--text-dark); font-family: var(--font-mono); font-weight: 700; font-size: 0.8rem; text-transform: uppercase; }
+        .custom-table tbody tr { transition: background 0.2s ease; }
+        .custom-table tbody tr:hover { background: rgba(124, 58, 237, 0.05); }
+        .custom-table tbody tr:last-child td { border-bottom: none; }
+
+        /* ================= ALERTS ================= */
+        .alert { font-family: var(--font-mono); font-size: 0.85rem; font-weight: 700; text-transform: uppercase; border: 2px solid transparent; padding: 1rem 1.5rem; margin-bottom: 2rem; display: flex; align-items: center; justify-content: space-between;}
+        .alert-danger { background: var(--bg-base); color: #ef4444; border-color: #ef4444; }
+        .alert-success { background: var(--bg-base); color: #10b981; border-color: #10b981; }
+        .alert-warning { background: var(--bg-base); color: #f59e0b; border-color: #f59e0b; }
+        .btn-close-alert { background: none; border: none; color: inherit; font-size: 1.2rem; cursor: pointer; }
+
+        @media (max-width: 1024px) {
+            .telemetry-grid { grid-template-columns: repeat(2, 1fr); }
+            .tel-block:nth-child(2) { border-right: none; }
+            .tel-block:nth-child(1), .tel-block:nth-child(2) { border-bottom: 2px solid var(--text-dark); }
+            .form-grid { grid-template-columns: 1fr; }
+        }
     </style>
 </head>
 <body>
 
-    <canvas id="cometField"></canvas>
+<header class="tech-header">
+    <div class="sys-logo interactive">
+        <i class="fa-solid fa-server"></i> Admin Dashboard <div class="line"></div> ZCOER
+    </div>
+    <a href="logout.php" class="btn-tech danger interactive"><i class="fa-solid fa-power-off"></i> Logout</a>
+</header>
 
-    <div class="dashboard-container">
-        <div class="d-flex justify-content-between align-items-center mb-4">
-            <div>
-                <div class="eyebrow mb-1">ZCOER // SYSTEM ROOT</div>
-                <h2 class="fw-bold m-0" style="font-family: 'Space Grotesk', sans-serif;">Admin IDP Command Terminal</h2>
-            </div>
-            <a href="logout.php" class="btn btn-outline-danger btn-sm rounded-3"><i class="fa-solid fa-power-off me-1"></i> Logout</a>
+<div class="dashboard-container">
+
+    <?php if ($flashMessage): ?>
+        <div class="alert <?php echo $flashClass; ?> interactive" id="alertBox">
+            <div><?php echo htmlspecialchars($flashMessage); ?></div>
+            <button type="button" class="btn-close-alert" onclick="document.getElementById('alertBox').style.display='none'">&times;</button>
         </div>
+    <?php endif; ?>
 
-        <?php if ($flashMessage): ?>
-            <div class="alert <?php echo $flashClass; ?> alert-dismissible fade show mb-4"><?php echo htmlspecialchars($flashMessage); ?><button type="button" class="btn-close btn-close-white" data-bs-dismiss="alert"></button></div>
-        <?php endif; ?>
-
-        <!-- Summary Strip -->
-        <div class="row g-3 mb-4">
-            <div class="col-md-3">
-                <div class="glass-card m-0">
-                    <div class="eyebrow">Pending Requests</div>
-                    <h3 class="fw-bold mt-1 text-warning"><?php echo $pendingRequests; ?></h3>
-                </div>
-            </div>
-            <div class="col-md-3">
-                <div class="glass-card m-0">
-                    <div class="eyebrow">Active Students</div>
-                    <h3 class="fw-bold mt-1"><?php echo $totalStudents; ?></h3>
-                </div>
-            </div>
-            <div class="col-md-3">
-                <div class="glass-card m-0">
-                    <div class="eyebrow">Active Parents</div>
-                    <h3 class="fw-bold mt-1 text-info"><?php echo $totalParents; ?></h3>
-                </div>
-            </div>
-            <div class="col-md-3">
-                <div class="glass-card m-0">
-                    <div class="eyebrow">Total Users</div>
-                    <h3 class="fw-bold mt-1"><?php echo $totalUsers; ?></h3>
-                </div>
-            </div>
+    <!-- Summary Strip (4 Columns) -->
+    <div class="telemetry-grid interactive">
+        <div class="tel-block">
+            <div class="tel-val" style="color: #f59e0b;"><?php echo $pendingRequests; ?></div>
+            <div class="tel-label">Pending Requests</div>
         </div>
-
-        <!-- MANUAL STAFF IDP ASSIGNMENT PANEL -->
-        <div class="glass-card mb-4">
-            <div class="d-flex align-items-center mb-3">
-                <i class="fa-solid fa-user-plus me-2 text-white"></i>
-                <h5 class="fw-bold m-0">Manual Staff IDP Provisioning</h5>
-            </div>
-            <p class="text-secondary small mb-3">Manually assign login credentials for staff roles (Faculty, HOD, GFM, Admin). Default passkey will be <code>Zeal@2026</code>.</p>
-
-            <form method="POST" action="admin_dashboard.php">
-                <input type="hidden" name="action" value="create_staff_idp">
-                <div class="row g-3 align-items-end">
-                    <div class="col-md-3">
-                        <label class="eyebrow mb-1 d-block">Staff Member Name</label>
-                        <input type="text" name="staff_name" class="form-control-custom" placeholder="e.g. Dr. Alan Smith" required autocomplete="off">
-                    </div>
-                    <div class="col-md-4">
-                        <label class="eyebrow mb-1 d-block">Official Username / Email</label>
-                        <input type="text" name="staff_username" class="form-control-custom" placeholder="e.g. alansmith@zeal.in" required autocomplete="off">
-                    </div>
-                    <div class="col-md-3">
-                        <label class="eyebrow mb-1 d-block">Assign Staff Role</label>
-                        <select name="staff_role" class="form-select-custom" required>
-                            <option value="" disabled selected>Select Role</option>
-                            <option value="Faculty">Faculty</option>
-                            <option value="HOD">HOD (Head of Dept)</option>
-                            <option value="GFM">GFM (Guardian Faculty Member)</option>
-                            <option value="Admin">System Administrator</option>
-                        </select>
-                    </div>
-                    <div class="col-md-2">
-                        <button type="submit" class="btn btn-action-silver w-100"><i class="fa-solid fa-key me-1"></i> Issue IDP</button>
-                    </div>
-                </div>
-            </form>
+        <div class="tel-block">
+            <div class="tel-val"><?php echo $totalStudents; ?></div>
+            <div class="tel-label">Active Students</div>
         </div>
-
-        <!-- Student & Parent Approval Queue -->
-        <div class="glass-card mb-4">
-            <div class="d-flex justify-content-between align-items-center mb-3">
-                <h5 class="fw-bold m-0">Pending Student & Parent Requests Queue</h5>
-                <span class="badge bg-warning text-dark font-monospace"><?php echo count($requestsList); ?> PENDING</span>
-            </div>
-
-            <div class="table-responsive">
-                <table class="table table-dark-custom align-middle">
-                    <thead>
-                        <tr>
-                            <th>PRN</th>
-                            <th>Student & Email</th>
-                            <th>Parent & Login Email</th>
-                            <th>Department</th>
-                            <th class="text-end">Action</th>
-                        </tr>
-                    </thead>
-                    <tbody>
-                        <?php if (count($requestsList) === 0): ?>
-                            <tr><td colspan="5" class="text-center text-muted py-4">No pending student/parent requests in queue.</td></tr>
-                        <?php endif; ?>
-                        <?php foreach ($requestsList as $req): ?>
-                            <tr>
-                                <td class="font-monospace fw-bold text-white"><?php echo htmlspecialchars($req['prn_number']); ?></td>
-                                <td>
-                                    <strong><?php echo htmlspecialchars($req['full_name']); ?></strong>
-                                    <div class="text-secondary small"><?php echo htmlspecialchars($req['email']); ?></div>
-                                </td>
-                                <td>
-                                    <strong><?php echo htmlspecialchars($req['parent_name'] ?? 'Parent'); ?></strong>
-                                    <div class="text-info small"><i class="fa-regular fa-envelope me-1"></i><?php echo htmlspecialchars($req['parent_email'] ?? '-'); ?></div>
-                                </td>
-                                <td><span class="badge border border-secondary text-white-50"><?php echo htmlspecialchars($req['department']); ?></span></td>
-                                <td class="text-end">
-                                    <form method="post" class="d-inline">
-                                        <input type="hidden" name="action" value="approve_request">
-                                        <input type="hidden" name="request_id" value="<?php echo $req['request_id']; ?>">
-                                        <button type="submit" class="btn btn-action-silver me-1"><i class="fa-solid fa-check me-1"></i> Approve Dual IDP</button>
-                                    </form>
-                                    <form method="post" class="d-inline" onsubmit="return confirm('Reject request?');">
-                                        <input type="hidden" name="action" value="reject_request">
-                                        <input type="hidden" name="request_id" value="<?php echo $req['request_id']; ?>">
-                                        <button type="submit" class="btn btn-outline-silver text-danger border-danger"><i class="fa-solid fa-xmark"></i></button>
-                                    </form>
-                                </td>
-                            </tr>
-                        <?php endforeach; ?>
-                    </tbody>
-                </table>
-            </div>
+        <div class="tel-block">
+            <div class="tel-val" style="color: #3b82f6;"><?php echo $totalParents; ?></div>
+            <div class="tel-label">Active Parents</div>
         </div>
-
-        <!-- UPDATED: ISSUED SYSTEM USERS REGISTRY WITH EXPLICIT PRN & EMAIL -->
-        <div class="glass-card">
-            <h5 class="fw-bold mb-3">Issued Account Registry</h5>
-            <div class="table-responsive">
-                <table class="table table-dark-custom align-middle">
-                    <thead>
-                        <tr>
-                            <th>UID</th>
-                            <th>Name</th>
-                            <th>Login Username / PRN</th>
-                            <th>Email Address</th>
-                            <th>Role</th>
-                            <th>Onboarding Status</th>
-                            <th class="text-end">Manage</th>
-                        </tr>
-                    </thead>
-                    <tbody>
-                        <?php foreach ($userList as $u): ?>
-                            <tr>
-                                <td class="font-monospace text-secondary">#<?php echo $u['user_id']; ?></td>
-                                <td><strong><?php echo htmlspecialchars($u['name']); ?></strong></td>
-                                <td class="font-monospace text-white fw-semibold"><?php echo htmlspecialchars($u['username']); ?></td>
-                                <td class="text-info small font-monospace"><?php echo htmlspecialchars($u['email'] ?? $u['username']); ?></td>
-                                <td><span class="badge border border-secondary"><?php echo htmlspecialchars($u['role']); ?></span></td>
-                                <td>
-                                    <?php if ((int)$u['is_first_login'] === 1): ?>
-                                        <span class="text-warning small"><i class="fa-solid fa-hourglass me-1"></i> Pending Setup</span>
-                                    <?php else: ?>
-                                        <span class="text-success small"><i class="fa-solid fa-circle-check me-1"></i> Completed</span>
-                                    <?php endif; ?>
-                                </td>
-                                <td class="text-end">
-                                    <?php if ((int)$u['user_id'] !== (int)$_SESSION['user_id']): ?>
-                                        <form method="post" class="d-inline" onsubmit="return confirm('Purge account?');">
-                                            <input type="hidden" name="action" value="delete_user">
-                                            <input type="hidden" name="target_user_id" value="<?php echo $u['user_id']; ?>">
-                                            <button type="submit" class="btn btn-sm btn-outline-danger"><i class="fa-solid fa-trash-can"></i></button>
-                                        </form>
-                                    <?php endif; ?>
-                                </td>
-                            </tr>
-                        <?php endforeach; ?>
-                    </tbody>
-                </table>
-            </div>
+        <div class="tel-block">
+            <div class="tel-val" style="color: var(--text-dark);"><?php echo $totalUsers; ?></div>
+            <div class="tel-label">Total Users</div>
         </div>
     </div>
 
-    <script>
-        const canvas = document.getElementById('cometField'); const ctx = canvas.getContext('2d');
-        let stars = []; const numStars = 150; function resize() { canvas.width = window.innerWidth; canvas.height = window.innerHeight; }
-        window.addEventListener('resize', resize); resize();
-        class Star { constructor() { this.x = Math.random() * canvas.width; this.y = Math.random() * canvas.height; this.size = Math.random() * 1.2 + 0.3; this.speed = Math.random() * 0.4 + 0.1; this.alpha = Math.random() * 0.5 + 0.1; } update() { this.y -= this.speed; if (this.y < 0) { this.y = canvas.height; this.x = Math.random() * canvas.width; } } draw() { ctx.fillStyle = `rgba(255, 255, 255, ${this.alpha})`; ctx.beginPath(); ctx.arc(this.x, this.y, this.size, 0, Math.PI * 2); ctx.fill(); } }
-        for (let i = 0; i < numStars; i++) stars.push(new Star());
-        function loop() { ctx.fillStyle = '#010103'; ctx.fillRect(0, 0, canvas.width, canvas.height); stars.forEach(s => { s.update(); s.draw(); }); requestAnimationFrame(loop); } loop();
-    </script>
+    <!-- MANUAL STAFF IDP ASSIGNMENT PANEL -->
+    <div class="module-card interactive">
+        <h3 class="mod-title"><i class="fa-solid fa-user-plus"></i> Create Staff Account</h3>
+        <p style="font-family: var(--font-mono); font-size: 0.85rem; color: var(--text-tech); margin-bottom: 2rem;">
+            Assign login credentials for staff roles. Default password: <span class="sys-tag">Zeal@2026</span>
+        </p>
+
+        <form method="POST" action="admin_dashboard.php">
+            <input type="hidden" name="action" value="create_staff_idp">
+            <div class="form-grid">
+                <div>
+                    <label class="form-label">Staff Member Name</label>
+                    <input type="text" name="staff_name" class="form-control-custom interactive" placeholder="e.g. Dr. Alan Smith" required autocomplete="off">
+                </div>
+                <div>
+                    <label class="form-label">Username / Email</label>
+                    <input type="text" name="staff_username" class="form-control-custom interactive" placeholder="e.g. alansmith@zeal.in" required autocomplete="off">
+                </div>
+                <div>
+                    <label class="form-label">Assign Role</label>
+                    <select name="staff_role" class="form-select-custom interactive" required>
+                        <option value="" disabled selected>-- Select --</option>
+                        <option value="Faculty">Faculty</option>
+                        <option value="HOD">HOD</option>
+                        <option value="GFM">GFM</option>
+                        <option value="Admin">Admin</option>
+                    </select>
+                </div>
+                <div>
+                    <label class="form-label">Branch / Dept</label>
+                    <select name="staff_department" class="form-select-custom interactive" required>
+                        <option value="" disabled selected>-- Select --</option>
+                        <option value="AI and Machine Learning">AI and Machine Learning</option>
+                        <option value="AI and Data Science">AI and Data Science</option>
+                        <option value="Computer Engineering">Computer Engineering</option>
+                        <option value="ENTC">ENTC</option>
+                        <option value="Mechanical Engineering">Mechanical Engineering</option>
+                        <option value="Electrical Engineering">Electrical Engineering</option>
+                        <option value="Electronics and Computer Engineering">Electronics and Computer Engineering</option>
+                        <option value="Information Technology">Information Technology</option>
+                        <option value="Civil Engineering">Civil Engineering</option>
+                    </select>
+                </div>
+                <div>
+                    <button type="submit" class="btn-action w-100 interactive" style="height: 44px;">Create Account</button>
+                </div>
+            </div>
+        </form>
+    </div>
+
+    <!-- Student & Parent Approval Queue -->
+    <div class="module-card interactive">
+        <div style="display: flex; justify-content: space-between; align-items: center; margin-bottom: 1.5rem;">
+            <h3 class="mod-title" style="margin: 0;"><i class="fa-solid fa-list-check"></i> Pending Requests</h3>
+            <span class="sys-tag warning"><?php echo count($requestsList); ?> PENDING</span>
+        </div>
+
+        <div class="table-responsive">
+            <table class="custom-table">
+                <thead>
+                    <tr>
+                        <th>PRN</th>
+                        <th>Student & Email</th>
+                        <th>Parent & Login Email</th>
+                        <th>Department</th>
+                        <th style="text-align: right;">Action</th>
+                    </tr>
+                </thead>
+                <tbody>
+                    <?php if (count($requestsList) === 0): ?>
+                        <tr><td colspan="5" style="text-align: center; padding: 2rem; font-family: var(--font-mono); font-weight: 700; color: var(--text-light);">No pending requests.</td></tr>
+                    <?php endif; ?>
+                    <?php foreach ($requestsList as $req): ?>
+                        <tr>
+                            <td style="font-family: var(--font-mono); font-weight: 700; color: var(--accent-main);"><?php echo htmlspecialchars($req['prn_number']); ?></td>
+                            <td>
+                                <strong style="font-family: var(--font-body); text-transform: uppercase; display: block;"><?php echo htmlspecialchars($req['full_name']); ?></strong>
+                                <span style="font-family: var(--font-mono); font-size: 0.75rem; color: var(--text-tech);"><?php echo htmlspecialchars($req['email']); ?></span>
+                            </td>
+                            <td>
+                                <strong style="font-family: var(--font-body); text-transform: uppercase; display: block;"><?php echo htmlspecialchars($req['parent_name'] ?? 'Parent'); ?></strong>
+                                <span style="font-family: var(--font-mono); font-size: 0.75rem; color: #3b82f6;"><i class="fa-solid fa-envelope me-1"></i><?php echo htmlspecialchars($req['parent_email'] ?? '-'); ?></span>
+                            </td>
+                            <td><span class="sys-tag"><?php echo htmlspecialchars($req['department']); ?></span></td>
+                            <td style="text-align: right;">
+                                <div style="display: inline-flex; gap: 0.5rem; justify-content: flex-end;">
+                                    <form method="post">
+                                        <input type="hidden" name="action" value="approve_request">
+                                        <input type="hidden" name="request_id" value="<?php echo $req['request_id']; ?>">
+                                        <button type="submit" class="btn-action interactive"><i class="fa-solid fa-check"></i> Approve</button>
+                                    </form>
+                                    <form method="post" onsubmit="return confirm('Reject request?');">
+                                        <input type="hidden" name="action" value="reject_request">
+                                        <input type="hidden" name="request_id" value="<?php echo $req['request_id']; ?>">
+                                        <button type="submit" class="btn-outline danger interactive"><i class="fa-solid fa-xmark"></i></button>
+                                    </form>
+                                </div>
+                            </td>
+                        </tr>
+                    <?php endforeach; ?>
+                </tbody>
+            </table>
+        </div>
+    </div>
+
+    <!-- ISSUED SYSTEM USERS REGISTRY -->
+    <div class="module-card interactive">
+        <h3 class="mod-title"><i class="fa-solid fa-database"></i> Registered Users</h3>
+        <div class="table-responsive">
+            <table class="custom-table">
+                <thead>
+                    <tr>
+                        <th>UID</th>
+                        <th>Name</th>
+                        <th>Username / PRN</th>
+                        <th>Email Address</th>
+                        <th>Role</th>
+                        <th>Department</th>
+                        <th>Status</th>
+                        <th style="text-align: right;">Manage</th>
+                    </tr>
+                </thead>
+                <tbody>
+                    <?php foreach ($userList as $u): ?>
+                        <tr>
+                            <td style="font-family: var(--font-mono); font-weight: 700; color: var(--text-light);">#<?php echo $u['user_id']; ?></td>
+                            <td style="font-family: var(--font-body); font-weight: 600; text-transform: uppercase;"><?php echo htmlspecialchars($u['name']); ?></td>
+                            <td style="font-family: var(--font-mono); font-weight: 700;"><?php echo htmlspecialchars($u['username']); ?></td>
+                            <td style="font-family: var(--font-mono); font-size: 0.8rem; color: #3b82f6;"><?php echo htmlspecialchars($u['email'] ?? $u['username']); ?></td>
+                            <td><span class="sys-tag"><?php echo htmlspecialchars($u['role']); ?></span></td>
+                            <td><span class="sys-tag accent"><?php echo htmlspecialchars($u['department'] ?: 'General'); ?></span></td>
+                            <td>
+                                <?php if ((int)$u['is_first_login'] === 1): ?>
+                                    <span style="font-family: var(--font-mono); font-size: 0.75rem; color: #f59e0b; font-weight: 700;">Pending</span>
+                                <?php else: ?>
+                                    <span style="font-family: var(--font-mono); font-size: 0.75rem; color: #10b981; font-weight: 700;">Active</span>
+                                <?php endif; ?>
+                            </td>
+                            <td style="text-align: right;">
+                                <?php if ((int)$u['user_id'] !== (int)$_SESSION['user_id']): ?>
+                                    <form method="post" style="display: inline;" onsubmit="return confirm('Delete user account?');">
+                                        <input type="hidden" name="action" value="delete_user">
+                                        <input type="hidden" name="target_user_id" value="<?php echo $u['user_id']; ?>">
+                                        <button type="submit" class="btn-outline danger interactive" style="padding: 0.4rem 0.6rem;"><i class="fa-solid fa-trash-can"></i></button>
+                                    </form>
+                                <?php endif; ?>
+                            </td>
+                        </tr>
+                    <?php endforeach; ?>
+                </tbody>
+            </table>
+        </div>
+    </div>
+</div>
+
+<script>
+document.addEventListener("DOMContentLoaded", () => {
+    // Connect interactive hover class for cursor styling
+    document.querySelectorAll('.interactive, button, a, input, select, textarea').forEach(el => {
+        el.addEventListener("mouseenter", () => document.body.classList.add("hovering"));
+        el.addEventListener("mouseleave", () => document.body.classList.remove("hovering"));
+    });
+});
+</script>
+
+<?php require_once __DIR__ . '/../includes/end_session_modal.php'; ?>
 </body>
 </html>

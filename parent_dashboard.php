@@ -1,792 +1,541 @@
 <?php
-$parentName = "Mrs. Sunita Sharma";
-$studentName = "Aarav Sharma";
-$rollNo = "23EC074";
-$deptName = "E&TC Engineering";
-$class = "TE - Division A";
-$academicYear = "2025–26";
-$collegeName = "Zeal College of Engineering & Research, Pune";
+if (session_status() === PHP_SESSION_NONE) {
+    session_start();
+}
 
-$stats = [
-    "studentPerf" => 84,
-    "attendance" => 91,
-    "completedActivities" => "18 / 20",
-    "avgMarks" => "4.2 / 5",
-    "pendingActivities" => 2,
-    "newNotifs" => 5
-];
+// Anti-caching headers to prevent browser back-button access after logout
+header("Cache-Control: no-cache, no-store, must-revalidate");
+header("Pragma: no-cache");
+header("Expires: 0");
 
-$academicOverview = [
-    ["subject" => "Digital Logic", "faculty" => "Prof. Patil", "attendance" => "95%", "marks" => "4.5/5", "status" => "Excellent"],
-    ["subject" => "Microprocessor", "faculty" => "Prof. Kulkarni", "attendance" => "90%", "marks" => "4.2/5", "status" => "Good"],
-    ["subject" => "DSP", "faculty" => "Prof. Shah", "attendance" => "88%", "marks" => "4.0/5", "status" => "Good"],
-    ["subject" => "Communication", "faculty" => "Prof. Mehta", "attendance" => "93%", "marks" => "4.6/5", "status" => "Excellent"]
-];
+require_once __DIR__ . '/config/db.php';
 
-$activities = [
-    ["name" => "K-Map Assignment", "duedate" => "20 Jul", "status" => "Submitted", "marks" => "5/5", "subject" => "Digital Logic"],
-    ["name" => "Number System", "duedate" => "25 Jul", "status" => "Submitted", "marks" => "4/5", "subject" => "Digital Logic"],
-    ["name" => "Boolean Algebra", "duedate" => "30 Jul", "status" => "Pending", "marks" => "—", "subject" => "Digital Logic"],
-    ["name" => "Flip-Flop Analysis", "duedate" => "28 Jul", "status" => "Submitted", "marks" => "4.5/5", "subject" => "Digital Logic"],
-    ["name" => "Combinational Circuits", "duedate" => "02 Aug", "status" => "Pending", "marks" => "—", "subject" => "Digital Logic"]
-];
+// Check authorization
+$role = strtolower($_SESSION['role'] ?? '');
+if (empty($_SESSION['user_id']) || !in_array($role, ['parent', 'admin'])) {
+    header('Location: auth/login.php');
+    exit;
+}
 
-$feedback = [
-    ["faculty" => "Prof. Patil", "subject" => "Digital Logic", "text" => "Excellent participation"],
-    ["faculty" => "Prof. Kulkarni", "subject" => "Microprocessor", "text" => "Needs more practice"],
-    ["faculty" => "Prof. Shah", "subject" => "DSP", "text" => "Good improvement"]
-];
+$parent_user_id = (int)$_SESSION['user_id'];
 
-$gfmRemarks = [
-    ["date" => "10 Jul", "text" => "Good academic progress", "status" => "Positive"],
-    ["date" => "18 Jul", "text" => "Improve assignment submission time", "status" => "Follow-up"],
-    ["date" => "25 Jul", "text" => "Parent meeting suggested", "status" => "Scheduled"]
-];
+// 1. Fetch Parent Account Info
+$stmtP = $pdo->prepare("SELECT * FROM users WHERE user_id = ?");
+$stmtP->execute([$parent_user_id]);
+$parentUser = $stmtP->fetch(PDO::FETCH_ASSOC);
 
-$notifications = [
-    ["message" => "Internal Assessment starts next week", "level" => "warning"],
-    ["message" => "New activity assigned", "level" => "success"],
-    ["message" => "Marks uploaded", "level" => "info"],
-    ["message" => "Parent-Teacher Meeting on 25 July", "level" => "danger"],
-    ["message" => "College Notice Published", "level" => "info"]
-];
+$parentName = $parentUser['name'] ?? $_SESSION['full_name'] ?? 'Parent / Guardian';
+$parentEmail = $parentUser['email'] ?? '';
+$ward_prn = trim($parentUser['linked_student_prn'] ?? '');
 
-$notices = [
-    ["date" => "15 Jul 2026", "title" => "Defaulter list review meeting", "desc" => "GFM defaulters meeting scheduled on 20th July at 11 AM in departmental room 402."],
-    ["date" => "12 Jul 2026", "title" => "Mid-Term assessment schedule", "desc" => "Mid-Term exams starts next week. Roster schedules have been updated on student notice sheets."]
-];
+// Fallback lookup via access_requests if linked_student_prn is empty
+if (empty($ward_prn) && !empty($parentEmail)) {
+    $stmtReq = $pdo->prepare("SELECT prn_number FROM access_requests WHERE LOWER(parent_email) = ? AND status = 'APPROVED' ORDER BY request_id DESC LIMIT 1");
+    $stmtReq->execute([strtolower($parentEmail)]);
+    $ward_prn = $stmtReq->fetchColumn() ?: '';
+}
+
+// 2. Fetch Ward (Student) Details
+$wardStudent = null;
+$wardSubmissions = [];
+$wardActivities = [];
+
+if (!empty($ward_prn)) {
+    $stmtWard = $pdo->prepare("
+        SELECT u.user_id, u.name AS student_name, u.email AS student_email, u.username AS prn, u.department, u.academic_year, u.division,
+               st.student_id, st.roll_no
+        FROM users u
+        LEFT JOIN students st ON st.user_id = u.user_id
+        WHERE (UPPER(u.username) = UPPER(?) OR UPPER(u.linked_student_prn) = UPPER(?)) AND LOWER(u.role) = 'student'
+        LIMIT 1
+    ");
+    $stmtWard->execute([$ward_prn, $ward_prn]);
+    $wardStudent = $stmtWard->fetch(PDO::FETCH_ASSOC);
+}
+
+if ($wardStudent) {
+    $student_user_id = (int)$wardStudent['user_id'];
+    $student_table_id = (int)($wardStudent['student_id'] ?? 0);
+
+    // Fetch Ward's Submissions & Scores
+    $stmtSub = $pdo->prepare("
+        SELECT s.*, a.title AS activity_title, a.type AS activity_type, a.max_marks, a.due_date,
+               u_fac.name AS faculty_name
+        FROM submissions s
+        JOIN activities a ON s.activity_id = a.activity_id
+        LEFT JOIN users u_fac ON a.faculty_id = u_fac.user_id
+        WHERE s.student_id = ? OR s.student_id = ?
+        ORDER BY s.submission_date DESC
+    ");
+    $stmtSub->execute([$student_user_id, $student_table_id]);
+    $wardSubmissions = $stmtSub->fetchAll(PDO::FETCH_ASSOC) ?: [];
+
+    // Fetch Ward's Classes
+    $stmtClassIds = $pdo->prepare("
+        SELECT class_id FROM faculty_classes WHERE department = ? AND academic_year = ? AND division = ?
+    ");
+    $stmtClassIds->execute([$wardStudent['department'] ?? '', $wardStudent['academic_year'] ?? 'FY', $wardStudent['division'] ?? '']);
+    $class_ids = $stmtClassIds->fetchAll(PDO::FETCH_COLUMN) ?: [];
+
+    // Query Ward's Activities
+    if (!empty($class_ids)) {
+        $inClause = implode(',', array_map('intval', $class_ids));
+        $stmtActs = $pdo->prepare("
+            SELECT a.*, u.name AS faculty_name, fc.class_name
+            FROM activities a
+            LEFT JOIN users u ON a.faculty_id = u.user_id
+            LEFT JOIN faculty_classes fc ON a.target_id = fc.class_id
+            WHERE a.target_type = 'all' OR (a.target_type = 'class' AND a.target_id IN ($inClause))
+            ORDER BY a.due_date DESC
+        ");
+        $stmtActs->execute();
+        $wardActivities = $stmtActs->fetchAll(PDO::FETCH_ASSOC) ?: [];
+    } else {
+        $stmtActs = $pdo->prepare("
+            SELECT a.*, u.name AS faculty_name, 'All Students' AS class_name
+            FROM activities a
+            LEFT JOIN users u ON a.faculty_id = u.user_id
+            WHERE a.target_type = 'all'
+            ORDER BY a.due_date DESC
+        ");
+        $stmtActs->execute();
+        $wardActivities = $stmtActs->fetchAll(PDO::FETCH_ASSOC) ?: [];
+    }
+}
+
+// Compute statistics
+$totalAssigned = count($wardActivities);
+$totalSubmitted = count($wardSubmissions);
+$totalPending = max(0, $totalAssigned - $totalSubmitted);
+
+$totalObtained = 0;
+$totalPossible = 0;
+foreach ($wardSubmissions as $sub) {
+    $totalObtained += ($sub['marks'] !== null) ? (float)$sub['marks'] : (float)$sub['max_marks'];
+    $totalPossible += (float)$sub['max_marks'];
+}
+$avgPercentage = ($totalPossible > 0) ? round(($totalObtained / $totalPossible) * 100, 1) : 0;
 ?>
 <!DOCTYPE html>
 <html lang="en">
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>Parent Dashboard | SAAES Zeal College</title>
-    <!-- Google Fonts: Outfit & Inter -->
-    <link rel="preconnect" href="https://fonts.googleapis.com">
-    <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
-    <link href="https://fonts.googleapis.com/css2?family=Inter:wght@300;400;500;600;700&family=Outfit:wght@300;400;500;600;700;800&display=swap" rel="stylesheet">
-    <!-- FontAwesome for Icons -->
+    <title>Parent Portal | SAAES</title>
+    
+    <!-- Professional Fonts matching Landing Page -->
+    <link href="https://fonts.googleapis.com/css2?family=Space+Grotesk:wght@400;600;700&family=JetBrains+Mono:wght@100;400;700;800&family=Inter:wght@400;500;600&display=swap" rel="stylesheet">
     <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.4.0/css/all.min.css">
-    <!-- Chart.js CDN -->
-    <script src="https://cdn.jsdelivr.net/npm/chart.js"></script>
-    <link rel="stylesheet" href="assets/css/style.css">
-    <script>
-        // Inject PHP serialized arrays directly into Client-side JS window object
-        window.PHP_DATA = <?php echo json_encode([
-            'stats' => $stats,
-            'academicOverview' => $academicOverview,
-            'activities' => $activities,
-            'feedback' => $feedback,
-            'gfmRemarks' => $gfmRemarks,
-            'notifications' => $notifications,
-            'notices' => $notices
-        ]); ?>;
-    </script>
-</head>
-<body class="theme-light">
-    <!-- Main App Container -->
-    <div class="app-container">
-        
-        <!-- Header -->
-        <header class="main-header">
-            <div class="header-left">
-                <button class="mobile-menu-btn" id="mobile-menu-btn" aria-label="Toggle Menu">
-                    <i class="fa-solid fa-bars"></i>
-                </button>
-                <div class="logo-area">
-                    <i class="fa-solid fa-graduation-cap logo-icon"></i>
-                    <div class="logo-text">
-                        <span class="college-name">Zeal College of Engineering & Research, Pune</span>
-                        <span class="dept-name">Student Activity Assessment & Evaluation System</span>
-                    </div>
-                </div>
-            </div>
+    
+    <!-- PDF & Excel Libraries -->
+    <script src="https://cdnjs.cloudflare.com/ajax/libs/html2pdf.js/0.10.1/html2pdf.bundle.min.js"></script>
+    <script src="https://cdnjs.cloudflare.com/ajax/libs/xlsx/0.18.5/xlsx.full.min.js"></script>
+
+    <style>
+        /* ==========================================================================
+           RIGID LIGHT SCI-FI DESIGN SYSTEM
+           ========================================================================== */
+        :root {
+            --bg-base: #ffffff;
+            --bg-panel: #fcfcfd;
+            --text-dark: #0f172a;
+            --text-tech: #475569;
+            --text-light: #94a3b8;
             
-            <div class="header-right">
-                <div class="header-date" id="current-date">
-                    <i class="fa-regular fa-calendar-days"></i>
-                    <span id="header-time-string">July 16, 2026</span>
-                </div>
-                
-                <div class="header-badge-btn" id="notif-bell-btn">
-                    <i class="fa-regular fa-bell"></i>
-                    <span class="badge-count" id="header-notif-count"><?php echo count($notifications); ?></span>
-                </div>
-                
-                <div class="theme-toggle-btn" id="theme-toggle">
-                    <i class="fa-solid fa-moon"></i>
-                </div>
-                
-                <div class="profile-dropdown-container">
-                    <div class="profile-btn" id="profile-btn">
-                        <div class="avatar">SS</div>
-                        <div class="profile-info">
-                            <span class="profile-name">Mrs. Sunita Sharma</span>
-                            <span class="profile-role">Parent Account</span>
-                        </div>
-                        <i class="fa-solid fa-chevron-down profile-arrow"></i>
-                    </div>
-                    <div class="profile-dropdown" id="profile-dropdown-menu">
-                        <a href="#" class="dropdown-item" id="menu-view-profile"><i class="fa-regular fa-user"></i> My Profile</a>
-                        <a href="#" class="dropdown-item" id="menu-view-settings"><i class="fa-solid fa-sliders"></i> Settings</a>
-                        <div class="dropdown-divider"></div>
-                        <a href="#" class="dropdown-item text-danger" id="logout-btn"><i class="fa-solid fa-arrow-right-from-bracket"></i> Logout</a>
-                    </div>
-                </div>
-            </div>
-        </header>
+            --accent-main: #7c3aed; /* Electric purple */
+            --accent-glow: #a855f7;
+            
+            --grid-size: 40px;
+            --border-harsh: 2px solid var(--text-dark);
+            
+            --font-head: 'Space Grotesk', sans-serif;
+            --font-mono: 'JetBrains Mono', monospace;
+            --font-body: 'Inter', sans-serif;
+        }
 
-        <div class="main-layout">
-            <!-- Left Sidebar -->
-            <aside class="sidebar">
-                <div class="sidebar-parent-card">
-                    <img src="https://images.unsplash.com/photo-1544005313-94ddf0286df2?auto=format&fit=crop&q=80&w=200" alt="Parent Profile Photo" class="parent-avatar" id="parent-avatar-img">
-                    <div class="parent-meta">
-                        <h4 class="parent-name" id="sb-parent-name"><?php echo htmlspecialchars($parentName); ?></h4>
-                        <p class="parent-detail"><strong>Parent of:</strong> <span id="sb-student-name"><?php echo htmlspecialchars($studentName); ?></span></p>
-                        <p class="parent-detail"><strong>Roll No.:</strong> <span id="sb-roll-no"><?php echo htmlspecialchars($rollNo); ?></span></p>
-                        <p class="parent-detail"><strong>Dept:</strong> <span id="sb-dept">E&TC Engineering</span></p>
-                        <p class="parent-detail"><strong>Class:</strong> <span id="sb-class"><?php echo htmlspecialchars($class); ?></span></p>
-                        <p class="parent-detail"><strong>A.Y.:</strong> <span id="sb-ay"><?php echo htmlspecialchars($academicYear); ?></span></p>
-                    </div>
-                </div>
-                <nav class="sidebar-nav">
-                    <ul>
-                        <li class="nav-item active" data-tab="dashboard">
-                            <a href="#"><i class="fa-solid fa-house"></i> <span>Dashboard</span></a>
-                        </li>
-                        <li class="nav-item" data-tab="student-overview">
-                            <a href="#"><i class="fa-solid fa-graduation-cap"></i> <span>Student Overview</span></a>
-                        </li>
-                        <li class="nav-item" data-tab="activities">
-                            <a href="#"><i class="fa-solid fa-book"></i> <span>Activities</span><span class="sidebar-badge bg-warning" id="sidebar-pending-count"><?php echo $stats['pendingActivities']; ?></span></a>
-                        </li>
-                        <li class="nav-item" data-tab="performance">
-                            <a href="#"><i class="fa-solid fa-chart-line"></i> <span>Academic Performance</span></a>
-                        </li>
-                        <li class="nav-item" data-tab="attendance">
-                            <a href="#"><i class="fa-solid fa-calendar-days"></i> <span>Attendance</span></a>
-                        </li>
-                        <li class="nav-item" data-tab="results">
-                            <a href="#"><i class="fa-solid fa-file-invoice"></i> <span>Results & Marks</span></a>
-                        </li>
-                        <li class="nav-item" data-tab="notices">
-                            <a href="#"><i class="fa-solid fa-bullhorn"></i> <span>Notices</span></a>
-                        </li>
-                        <li class="nav-item" data-tab="messages">
-                            <a href="#"><i class="fa-solid fa-envelope"></i> <span>Faculty Messages</span></a>
-                        </li>
-                        <li class="nav-item" data-tab="meet-gfm">
-                            <a href="#"><i class="fa-solid fa-people-roof"></i> <span>Meet GFM</span></a>
-                        </li>
-                        <li class="nav-item" data-tab="reports">
-                            <a href="#"><i class="fa-solid fa-file-pdf"></i> <span>Progress Reports</span></a>
-                        </li>
-                        <li class="nav-item" data-tab="settings">
-                            <a href="#"><i class="fa-solid fa-gear"></i> <span>Settings</span></a>
-                        </li>
-                        <li class="nav-item" id="sidebar-logout-btn">
-                            <a href="#"><i class="fa-solid fa-door-open"></i> <span>Logout</span></a>
-                        </li>
-                    </ul>
-                </nav>
-            </aside>
+        * { margin: 0; padding: 0; box-sizing: border-box; }
 
-            <!-- Main Scrollable Content Area -->
-            <main class="content-area">
-                
-                <!-- Tab: Dashboard -->
-                <section class="tab-content active" id="tab-dashboard">
-                    <!-- Welcome Section -->
-                    <div class="welcome-banner">
-                        <div class="welcome-text">
-                            <h2>Welcome, <?php echo htmlspecialchars($parentName); ?></h2>
-                            <p>Monitor your child's academic progress, attendance, activities, and overall performance.</p>
-                        </div>
-                        <div class="banner-badge">
-                            <span class="live-pulse"></span> Academic Year: <?php echo htmlspecialchars($academicYear); ?>
-                        </div>
-                    </div>
+        body {
+            background-color: var(--bg-base);
+            /* Architectural Blueprint Grid */
+            background-image: 
+                linear-gradient(rgba(124, 58, 237, 0.08) 1px, transparent 1px),
+                linear-gradient(90deg, rgba(124, 58, 237, 0.08) 1px, transparent 1px);
+            background-size: var(--grid-size) var(--grid-size);
+            background-position: center center;
+            color: var(--text-dark);
+            font-family: var(--font-body);
+            min-height: 100vh;
+            overflow-x: hidden;
+            
+            /* PIXELATED PURPLE CUSTOM CURSOR */
+            cursor: url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' width='32' height='32' viewBox='0 0 32 32' shape-rendering='crispEdges'%3E%3Cpath d='M4 4v20l5-5 4 8 4-2-4-8h8L4 4z' fill='%237c3aed' stroke='white' stroke-width='2'/%3E%3C/svg%3E") 4 4, auto;
+            -webkit-font-smoothing: antialiased;
+        }
 
-                    <!-- Dashboard Summary Cards -->
-                    <div class="summary-cards-grid">
-                        <div class="summary-card card-performance" data-target-tab="performance">
-                            <div class="card-icon"><i class="fa-solid fa-graduation-cap"></i></div>
-                            <div class="card-info">
-                                <span class="card-label">Student Performance</span>
-                                <h3 class="card-value" id="stat-student-perf"><?php echo $stats['studentPerf']; ?>%</h3>
-                                <span class="card-change text-success"><i class="fa-solid fa-chart-line"></i> Class average 78%</span>
-                            </div>
-                            <div class="card-decor"></div>
-                        </div>
+        /* PIXELATED HOVER CURSOR */
+        a, button, input, select, textarea, .interactive {
+            cursor: url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' width='32' height='32' viewBox='0 0 32 32' shape-rendering='crispEdges'%3E%3Cpath d='M4 4v20l5-5 4 8 4-2-4-8h8L4 4z' fill='%23a855f7' stroke='%230f172a' stroke-width='2.5'/%3E%3C/svg%3E") 4 4, pointer !important;
+        }
 
-                        <div class="summary-card card-attendance" data-target-tab="attendance">
-                            <div class="card-icon"><i class="fa-solid fa-calendar-days"></i></div>
-                            <div class="card-info">
-                                <span class="card-label">Attendance</span>
-                                <h3 class="card-value txt-green" id="stat-attendance"><?php echo $stats['attendance']; ?>%</h3>
-                                <span class="card-change text-success"><i class="fa-solid fa-circle-check"></i> Satisfies 75% limit</span>
-                            </div>
-                            <div class="card-decor"></div>
-                        </div>
+        ::selection { background: var(--accent-main); color: #fff; }
+        a { text-decoration: none; color: inherit; }
 
-                        <div class="summary-card card-completed" data-target-tab="activities">
-                            <div class="card-icon"><i class="fa-solid fa-circle-check"></i></div>
-                            <div class="card-info">
-                                <span class="card-label">Completed Activities</span>
-                                <h3 class="card-value txt-blue" id="stat-completed-activities"><?php echo htmlspecialchars($stats['completedActivities']); ?></h3>
-                                <span class="card-change text-info"><i class="fa-solid fa-check-double"></i> 90% Submit Rate</span>
-                            </div>
-                            <div class="card-decor"></div>
-                        </div>
+        /* ================= HEADER ================= */
+        .tech-header {
+            background: rgba(255, 255, 255, 0.95);
+            border-bottom: var(--border-harsh);
+            padding: 1.5rem 2.5rem;
+            display: flex; justify-content: space-between; align-items: center;
+            position: sticky; top: 0; z-index: 100;
+        }
+        .sys-logo {
+            display: flex; align-items: center; gap: 1rem;
+            font-family: var(--font-head); font-weight: 700; font-size: 1.4rem;
+            text-transform: uppercase;
+        }
+        .sys-logo i { color: var(--accent-main); }
+        .sys-logo .line { width: 30px; height: 2px; background: var(--text-dark); transform: skewX(-45deg); }
 
-                        <div class="summary-card card-marks" data-target-tab="results">
-                            <div class="card-icon"><i class="fa-solid fa-trophy"></i></div>
-                            <div class="card-info">
-                                <span class="card-label">Average Marks</span>
-                                <h3 class="card-value txt-purple" id="stat-avg-marks"><?php echo htmlspecialchars($stats['avgMarks']); ?></h3>
-                                <span class="card-change text-success"><i class="fa-solid fa-award"></i> Excellent level</span>
-                            </div>
-                            <div class="card-decor"></div>
-                        </div>
+        .sys-clock {
+            font-family: var(--font-mono); font-size: 0.85rem; font-weight: 700;
+            background: var(--text-dark); color: #fff; padding: 0.5rem 1rem;
+            display: flex; align-items: center; gap: 0.5rem;
+            clip-path: polygon(10px 0, 100% 0, 100% calc(100% - 10px), calc(100% - 10px) 100%, 0 100%, 0 10px);
+        }
+        .sys-clock .blink { color: var(--accent-glow); animation: blinker 1s linear infinite; }
+        @keyframes blinker { 50% { opacity: 0; } }
 
-                        <div class="summary-card card-pending" data-target-tab="activities">
-                            <div class="card-icon"><i class="fa-solid fa-hourglass-half"></i></div>
-                            <div class="card-info">
-                                <span class="card-label">Pending Activities</span>
-                                <h3 class="card-value txt-orange" id="stat-pending-activities"><?php echo $stats['pendingActivities']; ?></h3>
-                                <span class="card-change text-warning"><i class="fa-solid fa-clock"></i> Action required</span>
-                            </div>
-                            <div class="card-decor"></div>
-                        </div>
+        .dashboard-container {
+            max-width: 1400px; margin: 0 auto; padding: 3rem 2.5rem; flex: 1;
+        }
 
-                        <div class="summary-card card-notifications" data-target-tab="dashboard">
-                            <div class="card-icon"><i class="fa-solid fa-bell"></i></div>
-                            <div class="card-info">
-                                <span class="card-label">New Notifications</span>
-                                <h3 class="card-value txt-red" id="stat-notif-count"><?php echo $stats['newNotifs']; ?></h3>
-                                <span class="card-change text-danger"><i class="fa-solid fa-triangle-exclamation"></i> Alerts/notices</span>
-                            </div>
-                            <div class="card-decor"></div>
-                        </div>
-                    </div>
+        /* ================= MODULE CARDS ================= */
+        .module-card {
+            background: var(--bg-panel); border: 2px solid var(--text-dark);
+            padding: 2.5rem; margin-bottom: 2rem; position: relative; transition: transform 0.2s, box-shadow 0.2s;
+            clip-path: polygon(0 0, calc(100% - 20px) 0, 100% 20px, 100% 100%, 20px 100%, 0 calc(100% - 20px));
+        }
+        .module-card::before { content: ''; position: absolute; top: 0; left: 0; width: 30px; height: 30px; border-right: 2px solid var(--text-dark); border-bottom: 2px solid var(--text-dark); }
+        .module-card:hover { transform: translate(-4px, -4px); box-shadow: 10px 10px 0px rgba(124, 58, 237, 1); border-color: var(--accent-main); }
+        
+        .mod-title { font-family: var(--font-head); font-size: 1.5rem; font-weight: 700; margin-bottom: 1rem; text-transform: uppercase; display: flex; align-items: center; gap: 0.75rem;}
+        .mod-title i { color: var(--accent-main); }
 
-                    <!-- Row 1: Student Academic Overview & Alerts -->
-                    <div class="dashboard-row double-column">
-                        
-                        <!-- Student Academic Overview Section -->
-                        <div class="dashboard-card main-card flex-grow-1">
-                            <div class="card-header">
-                                <div class="header-title-container">
-                                    <i class="fa-solid fa-user-graduate header-icon"></i>
-                                    <h3>Student Academic Overview</h3>
-                                </div>
-                                <button class="btn btn-secondary-sm" id="btn-view-academic-report"><i class="fa-solid fa-file-pdf"></i> View Full Academic Report</button>
-                            </div>
-                            <div class="card-body">
-                                <div class="table-responsive">
-                                    <table class="dashboard-table">
-                                        <thead>
-                                            <tr>
-                                                <th>Subject</th>
-                                                <th>Assigned Faculty</th>
-                                                <th>Attendance Rate</th>
-                                                <th>Average Marks</th>
-                                                <th>Evaluation Status</th>
-                                            </tr>
-                                        </thead>
-                                        <tbody id="student-academic-overview">
-                                            <?php foreach ($academicOverview as $ao): ?>
-                                            <tr>
-                                                <td><strong><?php echo htmlspecialchars($ao['subject']); ?></strong></td>
-                                                <td><?php echo htmlspecialchars($ao['faculty']); ?></td>
-                                                <td><span class="font-semibold text-success"><?php echo htmlspecialchars($ao['attendance']); ?></span></td>
-                                                <td><strong><?php echo htmlspecialchars($ao['marks']); ?></strong></td>
-                                                <td><span class="badge <?php echo $ao['status'] === 'Excellent' ? 'badge-success' : 'badge-info'; ?>"><?php echo htmlspecialchars($ao['status']); ?></span></td>
-                                            </tr>
-                                            <?php endforeach; ?>
-                                        </tbody>
-                                    </table>
-                                </div>
-                            </div>
-                        </div>
+        .hero-banner {
+            background: var(--bg-base); border: 2px solid var(--text-dark);
+            padding: 3rem; margin-bottom: 2rem; position: relative; overflow: hidden;
+            clip-path: polygon(0 0, calc(100% - 30px) 0, 100% 30px, 100% 100%, 0 100%);
+        }
+        .hero-banner::after {
+            content: ''; position: absolute; top: 0; right: 0; width: 30px; height: 30px; background: var(--text-dark);
+        }
+        .hero-content { position: relative; z-index: 2; display: flex; justify-content: space-between; align-items: center; flex-wrap: wrap; gap: 1.5rem; }
 
-                        <!-- Notifications / Alerts Card -->
-                        <div class="dashboard-card main-card" style="min-width: 320px;">
-                            <div class="card-header border-bottom">
-                                <div class="header-title-container">
-                                    <i class="fa-solid fa-bell header-icon text-red"></i>
-                                    <h3>Notifications & Alerts</h3>
-                                </div>
-                            </div>
-                            <div class="card-body">
-                                <div class="notifications-list" id="notifications-list">
-                                    <!-- Rendered dynamically -->
-                                </div>
-                            </div>
-                        </div>
-                    </div>
+        /* ================= BUTTONS ================= */
+        .btn-tech {
+            font-family: var(--font-mono); font-weight: 700; font-size: 0.85rem; text-transform: uppercase;
+            padding: 0.8rem 1.5rem; display: inline-flex; align-items: center; justify-content: center; gap: 0.5rem;
+            background: var(--bg-base); color: var(--text-dark); border: 2px solid var(--text-dark);
+            position: relative; overflow: hidden; z-index: 1; cursor: pointer;
+            clip-path: polygon(10px 0, 100% 0, 100% calc(100% - 10px), calc(100% - 10px) 100%, 0 100%, 0 10px);
+            transition: color 0.3s; text-decoration: none;
+        }
+        .btn-tech::before {
+            content: ''; position: absolute; top: 0; left: -100%; width: 100%; height: 100%;
+            background: var(--accent-main); z-index: -1; transition: left 0.3s cubic-bezier(0.7, 0, 0.3, 1);
+        }
+        .btn-tech:hover { color: #fff; border-color: var(--accent-main); }
+        .btn-tech:hover::before { left: 0; }
+        
+        .btn-tech.primary { background: var(--text-dark); color: #fff; border-color: var(--text-dark); }
+        .btn-tech.primary:hover { color: #fff; }
+        .btn-tech.danger { border-color: #ef4444; color: #ef4444; }
+        .btn-tech.danger::before { background: #ef4444; }
+        .btn-tech.danger:hover { color: #fff; border-color: #ef4444; }
 
-                    <!-- Row 2: Attendance Monitor & Stats -->
-                    <div class="dashboard-row">
-                        <div class="dashboard-card main-card flex-1">
-                            <div class="card-header border-bottom">
-                                <div class="header-title-container">
-                                    <i class="fa-solid fa-calendar-days header-icon text-green"></i>
-                                    <h3>Attendance Summary</h3>
-                                </div>
-                                <div class="chart-tab-controls">
-                                    <button class="chart-tab-btn active" data-chart="attendance-ratio">Present/Absent Ratio</button>
-                                    <button class="chart-tab-btn" data-chart="attendance-trend">Monthly Trend</button>
-                                </div>
-                            </div>
-                            <div class="card-body chart-wrapper">
-                                <div class="chart-container">
-                                    <canvas id="parent-attendance-chart"></canvas>
-                                </div>
-                            </div>
-                        </div>
+        .btn-outline { background: transparent; border: 2px solid var(--text-dark); color: var(--text-dark); font-family: var(--font-mono); font-weight: 700; font-size: 0.85rem; padding: 0.6rem 1.2rem; cursor: pointer; transition: 0.2s;}
+        .btn-outline:hover { background: var(--text-dark); color: #fff; }
 
-                        <div class="dashboard-card main-card flex-grow-0" style="min-width: 320px;">
-                            <div class="card-header border-bottom">
-                                <div class="header-title-container">
-                                    <i class="fa-solid fa-square-poll-vertical header-icon text-blue"></i>
-                                    <h3>Attendance Statistics</h3>
-                                </div>
-                                <button class="btn btn-secondary-sm" id="btn-view-att-details-tab">Details</button>
-                            </div>
-                            <div class="card-body flex-column gap-3">
-                                <div class="stats-metric-flex">
-                                    <div class="stat-circle-highlight bg-green-light txt-green">
-                                        <span class="val">91%</span>
-                                        <span class="lbl">Present</span>
-                                    </div>
-                                    <div class="stat-circle-highlight bg-red-light txt-red">
-                                        <span class="val">9%</span>
-                                        <span class="lbl">Absent</span>
-                                    </div>
-                                </div>
-                                <hr class="divider">
-                                <div class="academic-metrics-grid">
-                                    <div class="metric-item-card">
-                                        <span class="m-label">Total Working Days</span>
-                                        <span class="m-value txt-blue">110 Days</span>
-                                    </div>
-                                    <div class="metric-item-card">
-                                        <span class="m-label">Days Present</span>
-                                        <span class="m-value txt-green">100 Days</span>
-                                    </div>
-                                </div>
-                            </div>
-                        </div>
-                    </div>
+        /* ================= TELEMETRY STATS ================= */
+        .telemetry-grid { display: grid; grid-template-columns: repeat(4, 1fr); border: 2px solid var(--text-dark); margin-bottom: 3rem; background: var(--bg-panel);}
+        .tel-block { padding: 2rem 1.5rem; border-right: 2px solid var(--text-dark); display: flex; flex-direction: column; justify-content: center; }
+        .tel-block:last-child { border-right: none; }
+        .tel-val { font-family: var(--font-head); font-size: 3rem; font-weight: 700; color: var(--accent-main); line-height: 1; margin-bottom: 0.5rem; }
+        .tel-label { font-family: var(--font-mono); font-size: 0.8rem; font-weight: 700; text-transform: uppercase; color: var(--text-tech);}
 
-                    <!-- Row 3: Activity Submissions & Recent Actions -->
-                    <div class="dashboard-row">
-                        <div class="dashboard-card main-card flex-1">
-                            <div class="card-header border-bottom">
-                                <div class="header-title-container">
-                                    <i class="fa-solid fa-book header-icon text-orange"></i>
-                                    <h3>Activity Submission Tracker</h3>
-                                </div>
-                                <div class="chart-tab-controls">
-                                    <button class="chart-tab-btn2 active" data-chart="submission-ratio">Status Ratio</button>
-                                </div>
-                            </div>
-                            <div class="card-body chart-wrapper">
-                                <div class="chart-container">
-                                    <canvas id="parent-activities-chart"></canvas>
-                                </div>
-                            </div>
-                        </div>
+        /* ================= METADATA TAGS ================= */
+        .sys-tag { 
+            font-family: var(--font-mono); font-size: 0.75rem; font-weight: 700; padding: 0.3rem 0.6rem; 
+            border: 1px solid var(--text-dark); color: var(--text-dark); text-transform: uppercase; display: inline-flex; align-items: center; gap: 0.4rem;
+        }
+        .sys-tag.accent { background: rgba(124, 58, 237, 0.05); color: var(--accent-main); border-color: var(--accent-main); }
+        .sys-tag.success { background: rgba(16, 185, 129, 0.05); color: #10b981; border-color: #10b981; }
+        .sys-tag.danger { background: rgba(239, 68, 68, 0.05); color: #ef4444; border-color: #ef4444; }
 
-                        <div class="dashboard-card main-card flex-grow-0" style="min-width: 320px;">
-                            <div class="card-header border-bottom">
-                                <div class="header-title-container">
-                                    <i class="fa-solid fa-clock header-icon text-orange"></i>
-                                    <h3>Recent Activities</h3>
-                                </div>
-                                <button class="btn btn-secondary-sm" id="btn-view-all-activities-tab-dash">View All</button>
-                            </div>
-                            <div class="card-body">
-                                <div class="table-responsive">
-                                    <table class="dashboard-table clean-table">
-                                        <thead>
-                                            <tr>
-                                                <th>Activity</th>
-                                                <th>Due Date</th>
-                                                <th>Status</th>
-                                                <th>Marks</th>
-                                            </tr>
-                                        </thead>
-                                        <tbody id="recent-activities-list">
-                                            <?php foreach (array_slice($activities, 0, 3) as $act): ?>
-                                            <tr>
-                                                <td><strong><?php echo htmlspecialchars($act['name']); ?></strong></td>
-                                                <td><?php echo htmlspecialchars($act['duedate']); ?></td>
-                                                <td><span class="badge <?php echo $act['status'] === 'Submitted' ? 'badge-success' : 'badge-warning'; ?>"><?php echo htmlspecialchars($act['status']); ?></span></td>
-                                                <td><strong><?php echo htmlspecialchars($act['marks']); ?></strong></td>
-                                            </tr>
-                                            <?php endforeach; ?>
-                                        </tbody>
-                                    </table>
-                                </div>
-                            </div>
-                        </div>
-                    </div>
+        /* ================= TABLES ================= */
+        .table-responsive { overflow-x: auto; background: var(--bg-base); border: 2px solid var(--text-dark); margin-bottom: 1rem; }
+        .custom-table { width: 100%; border-collapse: collapse; text-align: left; }
+        .custom-table th, .custom-table td { padding: 1rem 1.5rem; border-bottom: 1px solid var(--text-tech); font-size: 0.9rem; }
+        .custom-table th { background: var(--bg-panel); color: var(--text-dark); font-family: var(--font-mono); font-weight: 700; font-size: 0.8rem; text-transform: uppercase; }
+        .custom-table tbody tr { transition: background 0.2s ease; }
+        .custom-table tbody tr:hover { background: rgba(124, 58, 237, 0.05); }
+        .custom-table tbody tr:last-child td { border-bottom: none; }
 
-                    <!-- Row 4: Academic Performance & Quick Actions -->
-                    <div class="dashboard-row double-column">
-                        <div class="dashboard-card main-card flex-grow-1">
-                            <div class="card-header border-bottom">
-                                <div class="header-title-container">
-                                    <i class="fa-solid fa-chart-column header-icon text-purple"></i>
-                                    <h3>Academic Performance Charts</h3>
-                                </div>
-                                <div class="chart-tab-controls">
-                                    <button class="chart-tab-btn3 active" data-chart="subject-marks">Subject-wise Marks</button>
-                                    <button class="chart-tab-btn3" data-chart="semester-perf">Semester Performance</button>
-                                    <button class="chart-tab-btn3" data-chart="grade-dist">Grade Distribution</button>
-                                    <button class="chart-tab-btn3" data-chart="monthly-progress">Monthly Progress</button>
-                                </div>
-                            </div>
-                            <div class="card-body chart-wrapper">
-                                <div class="chart-container">
-                                    <canvas id="parent-performance-chart"></canvas>
-                                </div>
-                            </div>
-                        </div>
+        @media (max-width: 1024px) {
+            .telemetry-grid { grid-template-columns: repeat(2, 1fr); }
+            .tel-block:nth-child(2) { border-right: none; }
+            .tel-block:nth-child(1), .tel-block:nth-child(2) { border-bottom: 2px solid var(--text-dark); }
+            .hero-content { flex-direction: column; align-items: flex-start; }
+        }
+        @media (max-width: 600px) {
+            .telemetry-grid { grid-template-columns: 1fr; }
+            .tel-block { border-right: none !important; border-bottom: 2px solid var(--text-dark); }
+            .tel-block:last-child { border-bottom: none; }
+        }
+    </style>
+</head>
+<body>
 
-                        <div class="dashboard-card main-card" style="min-width: 320px;">
-                            <div class="card-header border-bottom">
-                                <div class="header-title-container">
-                                    <i class="fa-solid fa-bolt header-icon text-yellow"></i>
-                                    <h3>Quick Actions</h3>
-                                </div>
-                            </div>
-                            <div class="card-body">
-                                <div class="quick-actions-buttons-grid">
-                                    <button class="btn btn-action-card bg-blue-light" id="qa-dl-report-card">
-                                        <i class="fa-solid fa-file-pdf"></i>
-                                        <span>Download Report Card</span>
-                                    </button>
-                                    <button class="btn btn-action-card bg-purple-light" id="qa-view-perf">
-                                        <i class="fa-solid fa-chart-line"></i>
-                                        <span>View Performance</span>
-                                    </button>
-                                    <button class="btn btn-action-card bg-green-light" id="qa-check-att">
-                                        <i class="fa-solid fa-calendar-check"></i>
-                                        <span>Check Attendance</span>
-                                    </button>
-                                    <button class="btn btn-action-card bg-orange-light" id="qa-message-fac">
-                                        <i class="fa-solid fa-comment-dots"></i>
-                                        <span>Message Faculty</span>
-                                    </button>
-                                    <button class="btn btn-action-card bg-red-light" id="qa-book-gfm">
-                                        <i class="fa-solid fa-people-roof"></i>
-                                        <span>Book GFM Meeting</span>
-                                    </button>
-                                    <button class="btn btn-action-card bg-teal-light" id="qa-view-notices">
-                                        <i class="fa-solid fa-bullhorn"></i>
-                                        <span>View Notices</span>
-                                    </button>
-                                </div>
-                            </div>
-                        </div>
-                    </div>
-
-                    <!-- Row 5: Faculty Feedback & GFM Remarks -->
-                    <div class="dashboard-row double-column">
-                        <div class="dashboard-card main-card">
-                            <div class="card-header border-bottom">
-                                <div class="header-title-container">
-                                    <i class="fa-solid fa-message header-icon text-blue"></i>
-                                    <h3>Faculty Feedback remarks</h3>
-                                </div>
-                            </div>
-                            <div class="card-body">
-                                <div class="table-responsive">
-                                    <table class="dashboard-table">
-                                        <thead>
-                                            <tr>
-                                                <th>Faculty</th>
-                                                <th>Subject</th>
-                                                <th>Feedback Remarks</th>
-                                            </tr>
-                                        </thead>
-                                        <tbody id="faculty-feedback-list">
-                                            <?php foreach ($feedback as $fb): ?>
-                                            <tr>
-                                                <td><strong><?php echo htmlspecialchars($fb['faculty']); ?></strong></td>
-                                                <td><?php echo htmlspecialchars($fb['subject']); ?></td>
-                                                <td><span class="badge badge-purple"><?php echo htmlspecialchars($fb['text']); ?></span></td>
-                                            </tr>
-                                            <?php endforeach; ?>
-                                        </tbody>
-                                    </table>
-                                </div>
-                            </div>
-                        </div>
-
-                        <div class="dashboard-card main-card">
-                            <div class="card-header border-bottom">
-                                <div class="header-title-container">
-                                    <i class="fa-solid fa-user-doctor header-icon text-purple"></i>
-                                    <h3>GFM Remarks & Meetings</h3>
-                                </div>
-                            </div>
-                            <div class="card-body">
-                                <div class="table-responsive">
-                                    <table class="dashboard-table">
-                                        <thead>
-                                            <tr>
-                                                <th>Date</th>
-                                                <th>GFM Remark Log</th>
-                                                <th>Meeting Status</th>
-                                            </tr>
-                                        </thead>
-                                        <tbody id="gfm-remarks-list">
-                                            <?php foreach ($gfmRemarks as $gr): ?>
-                                            <tr>
-                                                <td><code><?php echo htmlspecialchars($gr['date']); ?></code></td>
-                                                <td><strong><?php echo htmlspecialchars($gr['text']); ?></strong></td>
-                                                <td><span class="badge <?php echo $gr['status'] === 'Positive' ? 'badge-success' : ($gr['status'] === 'Follow-up' ? 'badge-warning' : 'badge-purple'); ?>"><?php echo htmlspecialchars($gr['status']); ?></span></td>
-                                            </tr>
-                                            <?php endforeach; ?>
-                                        </tbody>
-                                    </table>
-                                </div>
-                            </div>
-                        </div>
-                    </div>
-                </section>
-
-                <!-- Dynamic Tab Contents served via JS -->
-                <section class="tab-content" id="tab-student-overview">
-                    <div class="tab-header-flex">
-                        <h2>Student Academic Performance Overview</h2>
-                    </div>
-                    <div class="table-card-wrapper main-card dashboard-card mt-4" id="overview-tab-wrapper"></div>
-                </section>
-
-                <section class="tab-content" id="tab-activities">
-                    <div class="tab-header-flex">
-                        <h2>Child Activities Portfolio</h2>
-                    </div>
-                    <div class="table-card-wrapper main-card dashboard-card mt-4">
-                        <div class="table-search-header">
-                            <div class="search-box">
-                                <i class="fa-solid fa-magnifying-glass"></i>
-                                <input type="text" id="activities-search" placeholder="Search activities...">
-                            </div>
-                        </div>
-                        <div class="table-responsive">
-                            <table class="dashboard-table">
-                                <thead>
-                                    <tr>
-                                        <th>Activity Name</th>
-                                        <th>Subject</th>
-                                        <th>Due Date</th>
-                                        <th>Submission Status</th>
-                                        <th>Marks</th>
-                                    </tr>
-                                </thead>
-                                <tbody id="activities-tbody"></tbody>
-                            </table>
-                        </div>
-                    </div>
-                </section>
-
-                <section class="tab-content" id="tab-performance">
-                    <div class="tab-header-flex">
-                        <h2>Child Academic Performance Analytics</h2>
-                    </div>
-                    <div class="grid-columns-2 gap-4 mt-4">
-                        <div class="dashboard-card main-card">
-                            <div class="card-header border-bottom">
-                                <h3>Subject-wise Marks Scored</h3>
-                            </div>
-                            <div class="card-body chart-wrapper">
-                                <canvas id="performance-tab-sub-chart" style="max-height:350px;"></canvas>
-                            </div>
-                        </div>
-                        <div class="dashboard-card main-card">
-                            <div class="card-header border-bottom">
-                                <h3>Monthly Child Progress Trend</h3>
-                            </div>
-                            <div class="card-body chart-wrapper">
-                                <canvas id="performance-tab-trend-chart" style="max-height:350px;"></canvas>
-                            </div>
-                        </div>
-                    </div>
-                </section>
-
-                <section class="tab-content" id="tab-attendance">
-                    <div class="tab-header-flex">
-                        <h2>Child Attendance Logs</h2>
-                    </div>
-                    <div class="dashboard-card main-card mt-4">
-                        <div class="card-header border-bottom">
-                            <h3>Attendance Logs & Trend lines</h3>
-                        </div>
-                        <div class="card-body chart-wrapper">
-                            <canvas id="attendance-tab-trend-chart" style="max-height:350px;"></canvas>
-                        </div>
-                    </div>
-                </section>
-
-                <section class="tab-content" id="tab-results">
-                    <div class="tab-header-flex">
-                        <h2>Results & Evaluation Marks</h2>
-                    </div>
-                    <div class="table-card-wrapper main-card dashboard-card mt-4" id="results-tab-wrapper"></div>
-                </section>
-
-                <section class="tab-content" id="tab-notices">
-                    <div class="tab-header-flex">
-                        <h2>College Notice Board Announcements</h2>
-                    </div>
-                    <div class="dashboard-card main-card mt-4" style="max-width: 600px; margin: 24px auto 0 auto;">
-                        <div class="card-body flex-column gap-3" id="notices-board-list"></div>
-                    </div>
-                </section>
-
-                <section class="tab-content" id="tab-messages">
-                    <div class="tab-header-flex">
-                        <h2>Compose Message to Class Professors</h2>
-                    </div>
-                    <div class="dashboard-card main-card mt-4" style="max-width: 600px; margin: 24px auto 0 auto;">
-                        <div class="card-body">
-                            <form id="compose-msg-form">
-                                <div class="form-group mb-3">
-                                    <label class="form-label">Select Faculty</label>
-                                    <select class="form-select" id="msg-faculty-select">
-                                        <option value="Prof. Patil">Prof. Patil (Digital Logic)</option>
-                                        <option value="Prof. Kulkarni">Prof. Kulkarni (Microprocessor)</option>
-                                        <option value="Prof. Shah">Prof. Shah (DSP)</option>
-                                    </select>
-                                </div>
-                                <div class="form-group mb-3">
-                                    <label class="form-label">Message Details</label>
-                                    <textarea class="form-control" rows="4" id="msg-text-input" placeholder="Type your message here..." required></textarea>
-                                </div>
-                                <button type="submit" class="btn btn-primary w-100">Dispatch Message</button>
-                            </form>
-                        </div>
-                    </div>
-                </section>
-
-                <section class="tab-content" id="tab-meet-gfm">
-                    <div class="tab-header-flex">
-                        <h2>GFM Meeting scheduler</h2>
-                        <button class="btn btn-primary" id="btn-book-gfm-top"><i class="fa-solid fa-calendar-plus"></i> Book GFM Meeting</button>
-                    </div>
-                    <div class="table-card-wrapper main-card dashboard-card mt-4" id="meet-gfm-tab-wrapper"></div>
-                </section>
-
-                <section class="tab-content" id="tab-reports">
-                    <div class="tab-header-flex">
-                        <h2>Reports Management console</h2>
-                    </div>
-                    <div class="reports-view-wrapper mt-4" id="reports-tab-wrapper"></div>
-                </section>
-
-                <section class="tab-content" id="tab-settings">
-                    <div class="tab-header-flex">
-                        <h2>Parent settings panel</h2>
-                    </div>
-                    <div class="grid-columns-2 gap-4 mt-4">
-                        <div class="dashboard-card main-card">
-                            <div class="card-header border-bottom">
-                                <h3>Account Information</h3>
-                            </div>
-                            <div class="card-body">
-                                <div class="form-group mb-3">
-                                    <label class="form-label">Full Name</label>
-                                    <input type="text" class="form-control" value="<?php echo htmlspecialchars($parentName); ?>">
-                                </div>
-                                <div class="form-group mb-3">
-                                    <label class="form-label">Associated Student</label>
-                                    <input type="text" class="form-control" value="<?php echo htmlspecialchars($studentName); ?>" disabled>
-                                </div>
-                                <button class="btn btn-primary" id="settings-save-btn">Save Preferences</button>
-                            </div>
-                        </div>
-                    </div>
-                </section>
-                
-                <!-- Footer -->
-                <footer class="dashboard-footer">
-                    <div class="footer-left">
-                        <span class="footer-copyright">&copy; 2026 Zeal College of Engineering & Research, Pune</span>
-                    </div>
-                    <div class="footer-right">
-                        <span class="footer-sysname">Student Activity Assessment & Evaluation System (SAAES)</span>
-                    </div>
-                </footer>
-            </main>
-        </div>
+<header class="tech-header">
+    <div class="sys-logo interactive">
+        <i class="fa-solid fa-user-shield"></i> Parent Portal <div class="line"></div> ZCOER
     </div>
+    
+    <div style="display: flex; gap: 1.5rem; align-items: center;">
+        <div class="sys-clock interactive">
+            Time <span class="blink">|</span> <span id="clock">00:00:00</span>
+        </div>
+        <a href="auth/logout.php" class="btn-tech danger interactive">
+            <i class="fa-solid fa-power-off"></i> Logout
+        </a>
+    </div>
+</header>
 
-    <!-- Modals Section -->
-    <div class="modal-overlay" id="modal-message-faculty">
-        <div class="modal-card">
-            <div class="modal-header">
-                <h3><i class="fa-solid fa-comment-dots text-orange"></i> Send Message to Faculty</h3>
-                <button class="close-modal-btn" id="close-msg-modal-btn"><i class="fa-solid fa-xmark"></i></button>
-            </div>
-            <div class="modal-body">
-                <form id="modal-message-form">
-                    <div class="form-group mb-3">
-                        <label class="form-label">Select Faculty</label>
-                        <select id="modal-msg-fac" class="form-select">
-                            <option value="Prof. Patil">Prof. Patil (Digital Logic)</option>
-                            <option value="Prof. Kulkarni">Prof. Kulkarni (Microprocessor)</option>
-                        </select>
-                    </div>
-                    <div class="form-group mb-3">
-                        <label class="form-label">Message / Inquiry</label>
-                        <textarea id="modal-msg-text" class="form-control" rows="3" placeholder="Type query..." required></textarea>
-                    </div>
-                    <div class="modal-footer">
-                        <button type="button" class="btn btn-secondary-outline" id="btn-cancel-msg">Cancel</button>
-                        <button type="submit" class="btn btn-primary">Send Message</button>
-                    </div>
-                </form>
+<div class="dashboard-container">
+
+    <?php if (!$wardStudent): ?>
+        <!-- UNLINKED WARD ALERT -->
+        <div class="module-card interactive" style="text-align: center; padding: 4rem 2rem;">
+            <i class="fa-solid fa-user-slash" style="font-size: 3rem; color: var(--text-tech); margin-bottom: 1rem;"></i>
+            <h2 style="font-family: var(--font-head); font-size: 1.8rem; font-weight: 700; text-transform: uppercase; margin-bottom: 0.5rem; color: var(--text-dark);">No Student Linked to Account</h2>
+            <p style="font-family: var(--font-mono); color: var(--text-tech); max-width: 600px; margin: 0 auto 1.5rem; font-size: 0.9rem;">
+                We could not find an approved student account matching your registered parent profile. Please contact college administration to link your student.
+            </p>
+            <?php if (!empty($parentEmail)): ?>
+                <p style="font-family: var(--font-mono); font-size: 0.85rem; color: var(--text-dark);">Registered Parent Email: <strong><?php echo htmlspecialchars($parentEmail); ?></strong></p>
+            <?php endif; ?>
+        </div>
+    <?php else: ?>
+
+        <!-- WARD HEADER BANNER -->
+        <div class="hero-banner interactive">
+            <div class="hero-content">
+                <div>
+                    <h1 style="font-family: var(--font-head); font-size: 2.2rem; margin-bottom: 0.5rem; font-weight: 700; text-transform: uppercase;"><?php echo htmlspecialchars($wardStudent['student_name'] ?: 'Student Overview'); ?></h1>
+                    <p style="color: var(--text-tech); font-family: var(--font-mono); font-size: 0.95rem; margin-bottom: 0;">
+                        PRN: <span style="color: var(--accent-main); font-weight: 700;"><?php echo htmlspecialchars($wardStudent['prn']); ?></span> &bull; 
+                        Roll No: <strong><?php echo htmlspecialchars($wardStudent['roll_no'] ?: 'N/A'); ?></strong> &bull; 
+                        Dept: <strong><?php echo htmlspecialchars($wardStudent['department'] ?: 'Engineering'); ?></strong>
+                    </p>
+                </div>
+                <div style="display: flex; gap: 0.75rem;">
+                    <button class="btn-tech interactive" onclick="exportPDF()">
+                        <i class="fa-solid fa-file-pdf"></i> Export PDF
+                    </button>
+                    <button class="btn-tech primary interactive" onclick="exportExcel()">
+                        <i class="fa-solid fa-file-excel"></i> Export Excel
+                    </button>
+                </div>
             </div>
         </div>
-    </div>
 
-    <div class="modal-overlay" id="modal-book-gfm">
-        <div class="modal-card">
-            <div class="modal-header">
-                <h3><i class="fa-solid fa-calendar-days text-purple"></i> Schedule GFM Meeting Slot</h3>
-                <button class="close-modal-btn" id="close-gfm-modal-btn"><i class="fa-solid fa-xmark"></i></button>
+        <div id="exportTable">
+            <!-- STATS SUMMARY (4 Columns) -->
+            <div class="telemetry-grid interactive">
+                <div class="tel-block">
+                    <div class="tel-val" style="color: var(--text-dark);"><?php echo $totalAssigned; ?></div>
+                    <div class="tel-label">Assigned Activities</div>
+                </div>
+                <div class="tel-block">
+                    <div class="tel-val" style="color: #10b981;"><?php echo $totalSubmitted; ?></div>
+                    <div class="tel-label">Completed</div>
+                </div>
+                <div class="tel-block">
+                    <div class="tel-val" style="color: #ef4444;"><?php echo $totalPending; ?></div>
+                    <div class="tel-label">Pending</div>
+                </div>
+                <div class="tel-block">
+                    <div class="tel-val" style="color: #f59e0b;"><?php echo $avgPercentage; ?>%</div>
+                    <div class="tel-label">Avg Score</div>
+                </div>
             </div>
-            <div class="modal-body">
-                <form id="book-gfm-form">
-                    <div class="form-group mb-3">
-                        <label class="form-label">Select Proposed Date</label>
-                        <input type="date" class="form-control" id="meet-gfm-date" required>
-                    </div>
-                    <div class="form-group mb-3">
-                        <label class="form-label">Discussion Topic Notes</label>
-                        <textarea id="meet-gfm-notes" class="form-control" rows="2" placeholder="Topic notes..."></textarea>
-                    </div>
-                    <div class="modal-footer">
-                        <button type="button" class="btn btn-secondary-outline" id="btn-cancel-gfm">Cancel</button>
-                        <button type="submit" class="btn btn-primary">Book Slot</button>
-                    </div>
-                </form>
+
+            <!-- SUBMISSIONS & EVALUATION SHEET -->
+            <div class="module-card interactive">
+                <h3 class="mod-title"><i class="fa-solid fa-clipboard-list"></i> Submissions & Evaluations</h3>
+                
+                <div class="table-responsive">
+                    <table class="custom-table">
+                        <thead>
+                            <tr>
+                                <th>Activity Title</th>
+                                <th>Status</th>
+                                <th>Submission Date</th>
+                                <th>Faculty</th>
+                                <th>Score</th>
+                            </tr>
+                        </thead>
+                        <tbody>
+                            <?php if (empty($wardSubmissions)): ?>
+                                <tr>
+                                    <td colspan="5" style="text-align: center; color: var(--text-tech); padding: 2.5rem; font-family: var(--font-mono); font-weight: 700;">
+                                        No activity submissions recorded for your ward yet.
+                                    </td>
+                                </tr>
+                            <?php else: ?>
+                                <?php foreach ($wardSubmissions as $sub): 
+                                    $is_late = !empty($sub['is_late']);
+                                    $score = $sub['marks'] !== null ? $sub['marks'] : $sub['max_marks'];
+                                ?>
+                                <tr>
+                                    <td>
+                                        <strong style="font-family: var(--font-head); font-size: 1.05rem; text-transform: uppercase;"><?php echo htmlspecialchars($sub['activity_title']); ?></strong>
+                                        <div style="font-family: var(--font-mono); font-size: 0.75rem; color: var(--text-tech); margin-top: 4px;">Type: <?php echo htmlspecialchars(ucfirst($sub['activity_type'])); ?></div>
+                                    </td>
+                                    <td>
+                                        <?php if ($is_late): ?>
+                                            <span class="sys-tag warning"><i class="fa-solid fa-clock"></i> Late</span>
+                                        <?php else: ?>
+                                            <span class="sys-tag success"><i class="fa-solid fa-check"></i> On Time</span>
+                                        <?php endif; ?>
+                                    </td>
+                                    <td style="font-family: var(--font-mono); font-size: 0.85rem; color: var(--text-tech);">
+                                        <?php echo date('M d, Y h:i A', strtotime($sub['submission_date'])); ?>
+                                    </td>
+                                    <td>
+                                        <strong style="font-family: var(--font-body); font-size: 0.9rem; text-transform: uppercase;"><?php echo htmlspecialchars($sub['faculty_name'] ?: 'Faculty'); ?></strong>
+                                    </td>
+                                    <td>
+                                        <strong style="font-family: var(--font-mono); font-size: 1.1rem; color: var(--accent-main);"><?php echo $score; ?></strong>
+                                        <span style="font-family: var(--font-mono); font-size: 0.8rem; color: var(--text-tech);">/ <?php echo $sub['max_marks']; ?></span>
+                                    </td>
+                                </tr>
+                                <?php endforeach; ?>
+                            <?php endif; ?>
+                        </tbody>
+                    </table>
+                </div>
+            </div>
+
+            <!-- ALL ASSIGNED ACTIVITIES -->
+            <div class="module-card interactive">
+                <h3 class="mod-title"><i class="fa-solid fa-list-check"></i> All Assigned Activities</h3>
+                
+                <div class="table-responsive">
+                    <table class="custom-table">
+                        <thead>
+                            <tr>
+                                <th>Activity Title</th>
+                                <th>Class / Group</th>
+                                <th>Due Date</th>
+                                <th>Max Marks</th>
+                                <th>Status</th>
+                            </tr>
+                        </thead>
+                        <tbody>
+                            <?php if (empty($wardActivities)): ?>
+                                <tr><td colspan="5" style="text-align: center; color: var(--text-tech); padding: 2.5rem; font-family: var(--font-mono); font-weight: 700;">No activities assigned yet.</td></tr>
+                            <?php else: ?>
+                                <?php 
+                                $submitted_act_ids = array_column($wardSubmissions, 'activity_id');
+                                foreach ($wardActivities as $act): 
+                                    $is_done = in_array($act['activity_id'], $submitted_act_ids);
+                                ?>
+                                <tr>
+                                    <td><strong style="font-family: var(--font-head); font-size: 1.05rem; text-transform: uppercase;"><?php echo htmlspecialchars($act['title']); ?></strong></td>
+                                    <td><span class="sys-tag accent"><?php echo htmlspecialchars($act['class_name'] ?: 'All Class'); ?></span></td>
+                                    <td style="font-family: var(--font-mono); font-size: 0.85rem; color: var(--text-tech);"><?php echo date('M d, Y', strtotime($act['due_date'])); ?></td>
+                                    <td style="font-family: var(--font-mono); font-weight: 700;"><?php echo $act['max_marks']; ?> Marks</td>
+                                    <td>
+                                        <?php if ($is_done): ?>
+                                            <span class="sys-tag success"><i class="fa-solid fa-check"></i> Completed</span>
+                                        <?php else: ?>
+                                            <span class="sys-tag danger"><i class="fa-solid fa-hourglass-half"></i> Pending</span>
+                                        <?php endif; ?>
+                                    </td>
+                                </tr>
+                                <?php endforeach; ?>
+                            <?php endif; ?>
+                        </tbody>
+                    </table>
+                </div>
             </div>
         </div>
-    </div>
+    <?php endif; ?>
 
-    <!-- Global Toast Container -->
-    <div class="toast-container" id="toast-container"></div>
+</div>
 
-    <!-- Main Engine Script -->
-    <script src="assets/js/script.js"></script>
+<script>
+document.addEventListener("DOMContentLoaded", () => {
+    // 1. Cursor Hover interactions
+    const attachCursorHover = () => {
+        document.querySelectorAll('.interactive, button, a, input, select, textarea').forEach(el => {
+            el.addEventListener("mouseenter", () => document.body.classList.add("hovering"));
+            el.addEventListener("mouseleave", () => document.body.classList.remove("hovering"));
+        });
+    };
+    attachCursorHover();
+    
+    const observer = new MutationObserver(attachCursorHover);
+    observer.observe(document.body, { childList: true, subtree: true });
+
+    // 2. Live Clock
+    const clockEl = document.getElementById('clock');
+    if (clockEl) {
+        function updateClock() {
+            const now = new Date();
+            const utc = now.getTime() + (now.getTimezoneOffset() * 60000);
+            const ist = new Date(utc + (3600000 * 5.5));
+            
+            let h = ist.getHours(), m = ist.getMinutes(), s = ist.getSeconds();
+            h = h < 10 ? '0'+h : h;
+            m = m < 10 ? '0'+m : m;
+            s = s < 10 ? '0'+s : s;
+            clockEl.textContent = `${h}:${m}:${s}`;
+        }
+        setInterval(updateClock, 1000);
+        updateClock();
+    }
+});
+
+function exportPDF() {
+    var element = document.getElementById('exportTable');
+    if (!element) return;
+    var opt = {
+      margin:       10,
+      filename:     'Student_Performance_Report.pdf',
+      image:        { type: 'jpeg', quality: 0.98 },
+      html2canvas:  { scale: 2 },
+      jsPDF:        { unit: 'mm', format: 'a4', orientation: 'landscape' }
+    };
+    html2pdf().set(opt).from(element).save();
+}
+
+function exportExcel() {
+    var element = document.getElementById("exportTable");
+    if (!element) return;
+    var wb = XLSX.utils.table_to_book(element, {sheet:"Ward_Report"});
+    XLSX.writeFile(wb, "Student_Performance_Report.xlsx");
+}
+</script>
+
+<?php 
+// Safely include modal without fatal error
+$modalPath = __DIR__ . '/includes/end_session_modal.php';
+if (file_exists($modalPath)) {
+    include_once $modalPath;
+}
+?>
 </body>
 </html>

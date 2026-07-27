@@ -3,7 +3,12 @@ if (session_status() === PHP_SESSION_NONE) {
     session_start();
 }
 
-if (!isset($_SESSION['user_id']) || $_SESSION['role'] !== 'Admin') {
+// Anti-caching headers to prevent browser back-button access after logout
+header("Cache-Control: no-cache, no-store, must-revalidate");
+header("Pragma: no-cache");
+header("Expires: 0");
+
+if (!isset($_SESSION['user_id']) || strtolower($_SESSION['role'] ?? '') !== 'admin') {
     header("Location: login.php");
     exit();
 }
@@ -12,8 +17,9 @@ require_once(__DIR__ . '/../config/db.php');
 
 // AUTO-HEAL: Sync missing emails in users table for seamless recovery
 function healUserEmails($conn) {
-    // 1. Ensure email column exists
+    // 1. Ensure email and department columns exist
     @mysqli_query($conn, "ALTER TABLE `users` ADD COLUMN IF NOT EXISTS `email` VARCHAR(150) DEFAULT NULL");
+    @mysqli_query($conn, "ALTER TABLE `users` ADD COLUMN IF NOT EXISTS `department` VARCHAR(150) DEFAULT NULL");
 
     // 2. Fill empty user emails with username if username is formatted like an email
     @mysqli_query($conn, "UPDATE `users` SET `email` = `username` WHERE (`email` IS NULL OR `email` = '') AND `username` LIKE '%@%'");
@@ -48,12 +54,12 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
             $student_name = trim($reqData['full_name']);
             $student_email= strtolower(trim($reqData['email']));
             $parent_name  = trim($reqData['parent_name'] ?? ($student_name . " Guardian"));
-            $parent_email = strtolower(trim($reqData['parent_email']));
+            $dept_name    = trim($reqData['department'] ?? '');
             $defaultPass  = password_hash('Zeal@2026', PASSWORD_BCRYPT);
 
             // 1. Create Student Account (Username = PRN, Email = student_email)
-            $createStudent = $conn->prepare("INSERT INTO users (name, username, email, password, role, is_first_login) VALUES (?, ?, ?, ?, 'Student', 1)");
-            $createStudent->bind_param("ssss", $student_name, $prn, $student_email, $defaultPass);
+            $createStudent = $conn->prepare("INSERT INTO users (name, username, email, department, password, role, is_first_login) VALUES (?, ?, ?, ?, ?, 'Student', 1)");
+            $createStudent->bind_param("sssss", $student_name, $prn, $student_email, $dept_name, $defaultPass);
             $createStudent->execute();
             $createStudent->close();
 
@@ -79,6 +85,7 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
         $staff_name = trim($_POST['staff_name'] ?? '');
         $username   = strtolower(trim($_POST['staff_username'] ?? ''));
         $staff_role = trim($_POST['staff_role'] ?? '');
+        $staff_dept = trim($_POST['staff_department'] ?? '');
         $defaultPass = password_hash('Zeal@2026', PASSWORD_BCRYPT);
 
         $allowedStaffRoles = ['Faculty', 'HOD', 'GFM', 'Admin'];
@@ -91,10 +98,11 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
                 $flashMessage = "Account creation aborted: Username/Email '$username' is already registered.";
                 $flashClass = "alert-danger bg-dark text-danger border-danger";
             } else {
-                $createStaff = $conn->prepare("INSERT INTO users (name, username, email, password, role, is_first_login) VALUES (?, ?, ?, ?, ?, 1)");
-                $createStaff->bind_param("sssss", $staff_name, $username, $username, $defaultPass, $staff_role);
+                $createStaff = $conn->prepare("INSERT INTO users (name, username, email, department, password, role, is_first_login) VALUES (?, ?, ?, ?, ?, ?, 1)");
+                $createStaff->bind_param("ssssss", $staff_name, $username, $username, $staff_dept, $defaultPass, $staff_role);
                 if ($createStaff->execute()) {
-                    $flashMessage = "Staff IDP provisioned successfully! Role: $staff_role | Login: $username | Default Passkey: Zeal@2026";
+                    $deptStr = !empty($staff_dept) ? " | Branch: $staff_dept" : "";
+                    $flashMessage = "Staff IDP provisioned successfully! Role: $staff_role$deptStr | Login: $username | Default Passkey: Zeal@2026";
                     $flashClass = "alert-success bg-dark text-success border-success";
                 } else {
                     $flashMessage = "Error writing staff IDP user record.";
@@ -149,9 +157,9 @@ if ($reqQ && mysqli_num_rows($reqQ) > 0) {
     while ($r = mysqli_fetch_assoc($reqQ)) { $requestsList[] = $r; }
 }
 
-// Fetch System Users List with explicit Email field
+// Fetch System Users List with explicit Email and Department fields
 $userList = [];
-$userQ = @mysqli_query($conn, "SELECT user_id, name, username, email, role, is_first_login FROM users ORDER BY user_id DESC LIMIT 30");
+$userQ = @mysqli_query($conn, "SELECT user_id, name, username, email, department, role, is_first_login FROM users ORDER BY user_id DESC LIMIT 30");
 if ($userQ && mysqli_num_rows($userQ) > 0) {
     while ($r = mysqli_fetch_assoc($userQ)) { $userList[] = $r; }
 }
@@ -246,11 +254,11 @@ if ($userQ && mysqli_num_rows($userQ) > 0) {
                         <label class="eyebrow mb-1 d-block">Staff Member Name</label>
                         <input type="text" name="staff_name" class="form-control-custom" placeholder="e.g. Dr. Alan Smith" required autocomplete="off">
                     </div>
-                    <div class="col-md-4">
+                    <div class="col-md-3">
                         <label class="eyebrow mb-1 d-block">Official Username / Email</label>
                         <input type="text" name="staff_username" class="form-control-custom" placeholder="e.g. alansmith@zeal.in" required autocomplete="off">
                     </div>
-                    <div class="col-md-3">
+                    <div class="col-md-2">
                         <label class="eyebrow mb-1 d-block">Assign Staff Role</label>
                         <select name="staff_role" class="form-select-custom" required>
                             <option value="" disabled selected>Select Role</option>
@@ -258,6 +266,21 @@ if ($userQ && mysqli_num_rows($userQ) > 0) {
                             <option value="HOD">HOD (Head of Dept)</option>
                             <option value="GFM">GFM (Guardian Faculty Member)</option>
                             <option value="Admin">System Administrator</option>
+                        </select>
+                    </div>
+                    <div class="col-md-2">
+                        <label class="eyebrow mb-1 d-block">Assign Branch / Dept</label>
+                        <select name="staff_department" class="form-select-custom" required>
+                            <option value="" disabled selected>-- Select --</option>
+                            <option value="AI and Machine Learning">AI and Machine Learning</option>
+                            <option value="AI and Data Science">AI and Data Science</option>
+                            <option value="Computer Engineering">Computer Engineering</option>
+                            <option value="ENTC">ENTC</option>
+                            <option value="Mechanical Engineering">Mechanical Engineering</option>
+                            <option value="Electrical Engineering">Electrical Engineering</option>
+                            <option value="Electronics and Computer Engineering">Electronics and Computer Engineering</option>
+                            <option value="Information Technology">Information Technology</option>
+                            <option value="Civil Engineering">Civil Engineering</option>
                         </select>
                     </div>
                     <div class="col-md-2">
@@ -332,6 +355,7 @@ if ($userQ && mysqli_num_rows($userQ) > 0) {
                             <th>Login Username / PRN</th>
                             <th>Email Address</th>
                             <th>Role</th>
+                            <th>Branch / Dept</th>
                             <th>Onboarding Status</th>
                             <th class="text-end">Manage</th>
                         </tr>
@@ -344,6 +368,7 @@ if ($userQ && mysqli_num_rows($userQ) > 0) {
                                 <td class="font-monospace text-white fw-semibold"><?php echo htmlspecialchars($u['username']); ?></td>
                                 <td class="text-info small font-monospace"><?php echo htmlspecialchars($u['email'] ?? $u['username']); ?></td>
                                 <td><span class="badge border border-secondary"><?php echo htmlspecialchars($u['role']); ?></span></td>
+                                <td><span class="badge border border-info text-info"><?php echo htmlspecialchars($u['department'] ?: 'General'); ?></span></td>
                                 <td>
                                     <?php if ((int)$u['is_first_login'] === 1): ?>
                                         <span class="text-warning small"><i class="fa-solid fa-hourglass me-1"></i> Pending Setup</span>

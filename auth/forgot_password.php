@@ -100,44 +100,230 @@ if ($_SERVER["REQUEST_METHOD"] === "POST") {
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>ZCOER // SAAES — Account Recovery</title>
+    <title>Account Recovery | SAAES</title>
+    
     <link href="https://cdn.jsdelivr.net/npm/bootstrap@5.3.0/dist/css/bootstrap.min.css" rel="stylesheet">
     <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.4.0/css/all.min.css">
-    <link href="https://fonts.googleapis.com/css2?family=Plus+Jakarta+Sans:wght@400;500;600;700;800&family=JetBrains+Mono:wght@300;400;500&family=Space+Grotesk:wght@600;700&display=swap" rel="stylesheet">
+    
+    <!-- Sci-Fi / Technical Fonts -->
+    <link href="https://fonts.googleapis.com/css2?family=Space+Grotesk:wght@400;600;700&family=JetBrains+Mono:wght@100;400;700;800&family=Inter:wght@400;500;600&display=swap" rel="stylesheet">
 
     <style>
-        :root { --bg-base: #010103; --panel-bg: rgba(8, 8, 11, 0.88); --input-bg: rgba(16, 18, 23, 0.75); --silver-border: rgba(255, 255, 255, 0.1); --silver-text: #94a3b8; }
-        * { font-family: 'Plus Jakarta Sans', sans-serif; letter-spacing: -0.01em; box-sizing: border-box; }
-        body { background-color: var(--bg-base); color: #fff; min-height: 100vh; display: flex; align-items: center; justify-content: center; padding: 24px; position: relative; overflow-x: hidden; }
-        #cometCanvas { position: absolute; top: 0; left: 0; width: 100%; height: 100%; z-index: 1; pointer-events: none; }
-        .recovery-card { background: var(--panel-bg); border: 1px solid var(--silver-border); border-radius: 16px; width: 100%; max-width: 460px; z-index: 5; padding: 36px; backdrop-filter: blur(24px); box-shadow: 0 40px 80px -30px rgba(0,0,0,0.95); }
-        .eyebrow { font-family: 'JetBrains Mono', monospace; font-size: 0.66rem; text-transform: uppercase; letter-spacing: 0.14em; color: var(--silver-text); }
-        .form-control-custom, .form-select-custom { background-color: var(--input-bg); border: 1px solid var(--silver-border); color: #f1f5f9; border-radius: 8px; padding: 12px 16px 12px 42px; font-size: 0.88rem; width: 100%; transition: all 0.2s ease; }
-        .form-control-custom:focus, .form-select-custom:focus { border-color: rgba(255, 255, 255, 0.35); outline: none; box-shadow: none; background-color: var(--input-bg); }
-        .form-select-custom option { background-color: #0b0c0e; color: #f1f5f9; }
-        .input-container { position: relative; margin-bottom: 18px; }
-        .input-icon { position: absolute; top: 50%; left: 16px; transform: translateY(-50%); color: #475569; font-size: 13px; }
-        .btn-action-silver { background: linear-gradient(180deg, #ffffff 0%, #cbd5e1 100%); color: #050508; border: none; border-radius: 8px; padding: 14px; font-weight: 700; font-size: 0.88rem; width: 100%; transition: all 0.2s ease; }
-        .btn-action-silver:hover { background: #ffffff; box-shadow: 0 4px 16px rgba(255, 255, 255, 0.2); }
-        .question-box { background: rgba(255,255,255,0.03); border: 1px dashed var(--silver-border); border-radius: 8px; padding: 12px 16px; font-size: 0.88rem; color: #cbd5e1; margin-bottom: 18px; }
+        :root {
+            --bg-base: #ffffff;
+            --bg-panel: #fcfcfd;
+            --text-dark: #0f172a; 
+            --text-tech: #475569; 
+            --text-light: #94a3b8;
+            
+            --accent-main: #7c3aed; /* Vibrant Purple */
+            --accent-glow: #a855f7; 
+            
+            --grid-size: 40px;
+            --border-harsh: 2px solid var(--text-dark);
+            
+            --font-head: 'Space Grotesk', sans-serif;
+            --font-mono: 'JetBrains Mono', monospace;
+            --font-body: 'Inter', sans-serif;
+        }
+
+        * { margin: 0; padding: 0; box-sizing: border-box; }
+
+        body {
+            background-color: var(--bg-base);
+            /* Architectural Blueprint Grid */
+            background-image: 
+                linear-gradient(rgba(124, 58, 237, 0.08) 1px, transparent 1px),
+                linear-gradient(90deg, rgba(124, 58, 237, 0.08) 1px, transparent 1px);
+            background-size: var(--grid-size) var(--grid-size);
+            background-position: center center;
+            color: var(--text-dark);
+            font-family: var(--font-body);
+            min-height: 100vh;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            padding: 40px 20px;
+            position: relative;
+            overflow-x: hidden;
+            
+            /* PIXELATED PURPLE CUSTOM CURSOR */
+            cursor: url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' width='32' height='32' viewBox='0 0 32 32' shape-rendering='crispEdges'%3E%3Cpath d='M4 4v20l5-5 4 8 4-2-4-8h8L4 4z' fill='%237c3aed' stroke='white' stroke-width='2'/%3E%3C/svg%3E") 4 4, auto;
+            -webkit-font-smoothing: antialiased;
+        }
+
+        /* PIXELATED HOVER CURSOR */
+        a, button, input, select, .interactive {
+            cursor: url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' width='32' height='32' viewBox='0 0 32 32' shape-rendering='crispEdges'%3E%3Cpath d='M4 4v20l5-5 4 8 4-2-4-8h8L4 4z' fill='%23a855f7' stroke='%230f172a' stroke-width='2.5'/%3E%3C/svg%3E") 4 4, pointer !important;
+        }
+
+        ::selection { background: var(--accent-main); color: #fff; }
+        a { text-decoration: none; color: inherit; }
+
+        /* ================= REGISTRATION/LOGIN CARD ================= */
+        .request-card {
+            background: rgba(255, 255, 255, 0.95);
+            border: var(--border-harsh);
+            width: 100%;
+            max-width: 500px;
+            z-index: 5;
+            padding: 3rem;
+            position: relative;
+            backdrop-filter: blur(10px);
+            box-shadow: 15px 15px 0px rgba(124, 58, 237, 0.15);
+            clip-path: polygon(0 0, calc(100% - 30px) 0, 100% 30px, 100% 100%, 30px 100%, 0 calc(100% - 30px));
+            animation: fadeUp 0.6s cubic-bezier(0.16, 1, 0.3, 1) forwards;
+        }
+        .request-card::before {
+            content: ''; position: absolute; top: 0; left: 0; width: 40px; height: 40px;
+            border-right: 2px solid var(--text-dark); border-bottom: 2px solid var(--text-dark);
+        }
+
+        @keyframes fadeUp {
+            from { opacity: 0; transform: translateY(30px); }
+            to { opacity: 1; transform: translateY(0); }
+        }
+
+        .sys-tag {
+            font-family: var(--font-mono);
+            font-size: 0.75rem;
+            font-weight: 700;
+            text-transform: uppercase;
+            letter-spacing: 0.15em;
+            color: var(--accent-main);
+            margin-bottom: 0.75rem;
+            display: inline-flex;
+            align-items: center;
+            gap: 0.5rem;
+            background: rgba(124, 58, 237, 0.08);
+            padding: 0.3rem 0.8rem;
+            border: 1px solid rgba(124, 58, 237, 0.2);
+        }
+
+        .card-title {
+            font-family: var(--font-head);
+            font-size: 2rem;
+            font-weight: 700;
+            color: var(--text-dark);
+            text-transform: uppercase;
+            letter-spacing: -0.02em;
+            margin-bottom: 0.5rem;
+            line-height: 1.1;
+        }
+
+        .card-subtitle {
+            font-family: var(--font-body);
+            color: var(--text-tech);
+            font-size: 0.9rem;
+            line-height: 1.5;
+            margin-bottom: 2.5rem;
+            border-left: 2px solid var(--accent-main);
+            padding-left: 1rem;
+        }
+
+        /* ================= FORM ELEMENTS ================= */
+        .form-group { margin-bottom: 1.25rem; }
+        
+        .custom-label {
+            font-family: var(--font-mono);
+            font-size: 0.8rem;
+            font-weight: 700;
+            text-transform: uppercase;
+            color: var(--text-dark);
+            margin-bottom: 6px;
+            display: block;
+        }
+
+        .form-control-custom, .form-select-custom {
+            background-color: var(--bg-base);
+            border: 1px solid var(--text-tech);
+            color: var(--text-dark);
+            padding: 12px 16px;
+            font-family: var(--font-body);
+            font-size: 0.95rem;
+            width: 100%;
+            transition: all 0.3s ease;
+            border-radius: 0;
+            -webkit-appearance: none;
+        }
+        
+        .form-control-custom:focus, .form-select-custom:focus {
+            border-color: var(--text-dark);
+            border-width: 2px;
+            outline: none;
+            padding: 11px 15px; /* Offset border width to prevent jitter */
+        }
+        .form-control-custom::placeholder { color: var(--text-light); font-family: var(--font-mono); font-size: 0.85rem; }
+
+        .question-box {
+            background: var(--bg-panel);
+            border: 1px dashed var(--text-tech);
+            border-left: 4px solid var(--accent-main);
+            padding: 1rem;
+            margin-bottom: 1.5rem;
+        }
+
+        /* ================= BUTTON ================= */
+        .btn-tech {
+            font-family: var(--font-mono); font-weight: 700; font-size: 1rem; text-transform: uppercase;
+            padding: 1rem 1.2rem; display: inline-flex; align-items: center; justify-content: center; gap: 0.75rem;
+            background: var(--text-dark); color: #fff; border: 2px solid var(--text-dark);
+            position: relative; overflow: hidden; z-index: 1; cursor: pointer;
+            clip-path: polygon(15px 0, 100% 0, 100% calc(100% - 15px), calc(100% - 15px) 100%, 0 100%, 0 15px);
+            transition: color 0.3s; width: 100%; margin-top: 0.5rem;
+        }
+        .btn-tech::before {
+            content: ''; position: absolute; top: 0; left: -100%; width: 100%; height: 100%;
+            background: var(--accent-main); z-index: -1; transition: left 0.3s cubic-bezier(0.7, 0, 0.3, 1);
+        }
+        .btn-tech:hover { color: #fff; border-color: var(--accent-main); }
+        .btn-tech:hover::before { left: 0; }
+        .btn-tech i { transition: transform 0.3s; }
+        .btn-tech:hover i { transform: translateX(5px); }
+
+        .login-link {
+            display: block;
+            text-align: center;
+            margin-top: 1.5rem;
+            font-family: var(--font-mono);
+            font-size: 0.85rem;
+            color: var(--text-tech);
+            transition: color 0.3s ease;
+            text-transform: uppercase;
+        }
+        .login-link strong { color: var(--accent-main); font-weight: 700; border-bottom: 1px solid var(--accent-main);}
+        .login-link:hover strong { color: var(--text-dark); border-color: var(--text-dark); }
+
+        /* Alerts styling */
+        .alert { 
+            font-family: var(--font-mono); font-size: 0.85rem; font-weight: 700; text-transform: uppercase; 
+            border: 2px solid transparent; border-radius: 0; padding: 1rem 1.2rem; margin-bottom: 1.5rem; 
+            display: flex; align-items: center; gap: 0.75rem;
+        }
+        .alert-danger { background: rgba(239, 68, 68, 0.05); color: #ef4444; border-color: #ef4444; }
+        .alert-success { background: rgba(16, 185, 129, 0.05); color: #10b981; border-color: #10b981; }
+
+        @media (max-width: 768px) {
+            .request-card { padding: 2rem; clip-path: none; box-shadow: 8px 8px 0px rgba(124, 58, 237, 0.15); border-radius: 0;}
+            .card-title { font-size: 1.6rem; }
+        }
     </style>
 </head>
 <body>
 
-    <canvas id="cometCanvas"></canvas>
-
-    <div class="recovery-card">
+    <div class="request-card">
         <div class="mb-4">
-            <div class="eyebrow mb-1">ZCOER // RECOVERY PROTOCOL</div>
-            <h3 class="fw-bold m-0" style="font-family: 'Space Grotesk', sans-serif;">Passkey Reset Gate</h3>
+            <div class="sys-tag"><i class="fa-solid fa-bolt"></i> SYS.INIT // RECOVERY</div>
+            <h3 class="card-title">Account Recovery</h3>
+            <p class="card-subtitle">Verify your identity to reset your password.</p>
         </div>
 
         <?php if (!empty($error)): ?>
-            <div class="alert alert-danger bg-dark text-danger border-danger small p-3 mb-4"><?php echo htmlspecialchars($error); ?></div>
+            <div class="alert alert-danger"><i class="fa-solid fa-triangle-exclamation"></i> <?php echo htmlspecialchars($error); ?></div>
         <?php endif; ?>
 
         <?php if (!empty($success)): ?>
-            <div class="alert alert-success bg-dark text-success border-success small p-3 mb-4"><?php echo htmlspecialchars($success); ?></div>
+            <div class="alert alert-success"><i class="fa-solid fa-circle-check"></i> <?php echo htmlspecialchars($success); ?></div>
         <?php endif; ?>
 
         <?php if ($step === 1): ?>
@@ -145,71 +331,76 @@ if ($_SERVER["REQUEST_METHOD"] === "POST") {
             <form method="POST" action="forgot_password.php">
                 <input type="hidden" name="action" value="verify_identity">
 
-                <div class="input-container">
-                    <select name="role" class="form-select-custom" required>
-                        <option value="" disabled selected>Select Portal Role Context</option>
-                        <option value="Student">Student Portal</option>
-                        <option value="Parent">Parent / Guardian Portal</option>
-                        <option value="Faculty">Faculty Command</option>
+                <div class="form-group">
+                    <label class="custom-label">Account Role *</label>
+                    <select name="role" class="form-select-custom interactive" required>
+                        <option value="" disabled selected>-- Select Role --</option>
+                        <option value="Student">Student</option>
+                        <option value="Parent">Parent / Guardian</option>
+                        <option value="Faculty">Faculty</option>
                         <option value="HOD">HOD (Head of Department)</option>
                         <option value="GFM">GFM (Guardian Faculty Member)</option>
-                        <option value="Admin">System Administrator</option>
+                        <option value="Admin">Administrator</option>
                     </select>
-                    <i class="fa-solid fa-user-gear input-icon"></i>
                 </div>
 
-                <div class="input-container">
-                    <input type="text" name="username" class="form-control-custom" placeholder="PRN (Student) or Email Address" required autocomplete="off">
-                    <i class="fa-solid fa-id-badge input-icon"></i>
+                <div class="form-group">
+                    <label class="custom-label">PRN or Email Address *</label>
+                    <input type="text" name="username" class="form-control-custom interactive" placeholder="Enter PRN or Email" required autocomplete="off">
                 </div>
 
-                <button type="submit" class="btn btn-action-silver">
-                    Verify Identity & Continue &rarr;
+                <button type="submit" class="btn-tech interactive">
+                    Verify Identity <i class="fa-solid fa-arrow-right"></i>
                 </button>
             </form>
+
         <?php elseif ($step === 2): ?>
             <!-- STEP 2: SECURITY QUESTION & PASSWORD RESET -->
             <form method="POST" action="forgot_password.php">
                 <input type="hidden" name="action" value="reset_password">
 
                 <div class="question-box">
-                    <div class="eyebrow text-secondary mb-1">Security Verification Question:</div>
-                    <strong><i class="fa-solid fa-circle-question me-1"></i> <?php echo htmlspecialchars($_SESSION['reset_question'] ?? ''); ?></strong>
+                    <div class="custom-label" style="color: var(--text-tech); margin-bottom: 0.2rem;">Security Question:</div>
+                    <strong style="font-family: var(--font-body); font-size: 1rem; color: var(--text-dark);">
+                        <i class="fa-solid fa-circle-question" style="color: var(--accent-main);"></i> <?php echo htmlspecialchars($_SESSION['reset_question'] ?? ''); ?>
+                    </strong>
                 </div>
 
-                <div class="input-container">
-                    <input type="text" name="security_answer" class="form-control-custom" placeholder="Your Security Answer" required autocomplete="off">
-                    <i class="fa-solid fa-shield-halved input-icon"></i>
+                <div class="form-group">
+                    <label class="custom-label">Your Answer *</label>
+                    <input type="text" name="security_answer" class="form-control-custom interactive" placeholder="Enter your answer" required autocomplete="off">
                 </div>
 
-                <div class="input-container">
-                    <input type="password" name="new_password" class="form-control-custom" placeholder="New Passkey (Min 6 chars)" required>
-                    <i class="fa-solid fa-lock input-icon"></i>
+                <div class="form-group">
+                    <label class="custom-label">New Password *</label>
+                    <input type="password" name="new_password" class="form-control-custom interactive" placeholder="Minimum 6 characters" required>
                 </div>
 
-                <div class="input-container">
-                    <input type="password" name="confirm_password" class="form-control-custom" placeholder="Confirm New Passkey" required>
-                    <i class="fa-solid fa-shield-check input-icon"></i>
+                <div class="form-group">
+                    <label class="custom-label">Confirm Password *</label>
+                    <input type="password" name="confirm_password" class="form-control-custom interactive" placeholder="Retype new password" required>
                 </div>
 
-                <button type="submit" class="btn btn-action-silver">
-                    Reset Passkey & Complete &rarr;
+                <button type="submit" class="btn-tech interactive">
+                    Reset Password <i class="fa-solid fa-check"></i>
                 </button>
             </form>
         <?php endif; ?>
 
-        <div class="text-center mt-4">
-            <a href="login.php" class="text-secondary small text-decoration-none">&larr; Return to <strong class="text-white">Login Terminal</strong></a>
-        </div>
+        <a href="login.php" class="login-link interactive">
+            Return to <strong>Login</strong>
+        </a>
     </div>
 
+    <!-- VANILLA JS FOR PREMIUM INTERACTIONS -->
     <script>
-        const canvas = document.getElementById('cometCanvas'); const ctx = canvas.getContext('2d');
-        let stars = []; const numStars = 160; function resize() { canvas.width = window.innerWidth; canvas.height = window.innerHeight; }
-        window.addEventListener('resize', resize); resize();
-        class Star { constructor() { this.x = Math.random() * canvas.width; this.y = Math.random() * canvas.height; this.size = Math.random() * 1.2 + 0.3; this.speed = Math.random() * 0.4 + 0.1; this.alpha = Math.random() * 0.5 + 0.1; } update() { this.y -= this.speed; if (this.y < 0) { this.y = canvas.height; this.x = Math.random() * canvas.width; } } draw() { ctx.fillStyle = `rgba(255, 255, 255, ${this.alpha})`; ctx.beginPath(); ctx.arc(this.x, this.y, this.size, 0, Math.PI * 2); ctx.fill(); } }
-        for (let i = 0; i < numStars; i++) stars.push(new Star());
-        function loop() { ctx.fillStyle = '#010103'; ctx.fillRect(0, 0, canvas.width, canvas.height); stars.forEach(s => { s.update(); s.draw(); }); requestAnimationFrame(loop); } loop();
+    document.addEventListener("DOMContentLoaded", () => {
+        // Connect interactive hover class for cursor styling
+        document.querySelectorAll('.interactive, button, a, input, select, textarea').forEach(el => {
+            el.addEventListener("mouseenter", () => document.body.classList.add("hovering"));
+            el.addEventListener("mouseleave", () => document.body.classList.remove("hovering"));
+        });
+    });
     </script>
 </body>
 </html>
