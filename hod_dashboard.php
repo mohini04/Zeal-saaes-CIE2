@@ -16,13 +16,7 @@ require_once __DIR__ . '/config/db.php';
 function init_hod_tables() {
     global $pdo;
     try {
-        $pdo->exec("CREATE TABLE IF NOT EXISTS hod_faculty_mapping (
-            id INT AUTO_INCREMENT PRIMARY KEY,
-            hod_id INT NOT NULL,
-            faculty_id INT NOT NULL,
-            added_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
-            UNIQUE KEY uk_hod_fac (hod_id, faculty_id)
-        ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4");
+        // Faculty mapping is now automatic by department
 
         // Ensure activities table tracks WHICH faculty created it
         $pdo->exec("ALTER TABLE activities ADD COLUMN IF NOT EXISTS faculty_id INT NULL AFTER activity_id");
@@ -46,6 +40,10 @@ if (empty($_SESSION['user_id']) || !in_array($role, ['hod', 'gfm', 'admin'])) {
 $hod_id = (int)$_SESSION['user_id'];
 $hod_name = $_SESSION['full_name'] ?? 'HOD / GFM';
 
+$stmtDept = $pdo->prepare("SELECT department FROM users WHERE user_id = ?");
+$stmtDept->execute([$hod_id]);
+$hod_department = $stmtDept->fetchColumn() ?: '';
+
 $view = $_GET['view'] ?? 'dashboard';
 $message = '';
 $success_message = '';
@@ -54,30 +52,7 @@ $success_message = '';
 // 2. ACTION HANDLERS
 // ----------------------------------------------------
 if ($_SERVER['REQUEST_METHOD'] === 'POST' && isset($_POST['form_action'])) {
-    if ($_POST['form_action'] === 'add_faculty_by_email') {
-        $email = trim($_POST['faculty_email']);
-        $stmt = $pdo->prepare("SELECT user_id, name FROM users WHERE email = ? AND LOWER(role) = 'faculty'");
-        $stmt->execute([$email]);
-        $faculty = $stmt->fetch(PDO::FETCH_ASSOC);
-
-        if ($faculty) {
-            try {
-                $stmtInsert = $pdo->prepare("INSERT INTO hod_faculty_mapping (hod_id, faculty_id) VALUES (?, ?)");
-                $stmtInsert->execute([$hod_id, $faculty['user_id']]);
-                $success_message = "Successfully linked Faculty: " . htmlspecialchars($faculty['name']);
-            } catch (PDOException $e) {
-                $message = "This faculty member is already on your monitoring list.";
-            }
-        } else {
-            $message = "No Faculty account found with the email '{$email}'. Ensure they are registered.";
-        }
-    } elseif ($_POST['form_action'] === 'remove_faculty') {
-        $fac_id_to_remove = (int)$_POST['faculty_id'];
-        $stmt = $pdo->prepare("DELETE FROM hod_faculty_mapping WHERE hod_id = ? AND faculty_id = ?");
-        if ($stmt->execute([$hod_id, $fac_id_to_remove])) {
-            $success_message = "Faculty removed from your monitoring list.";
-        }
-    }
+    // Legacy mapping actions removed; automatic department matching is used.
 }
 
 // Handle AJAX Logout
@@ -96,15 +71,15 @@ if ($input && isset($input['action']) && $input['action'] === 'logout') {
 
 // LEVEL 1: Fetch all faculty mapped to this HOD (Used in Directory list)
 $stmtFac = $pdo->prepare("
-    SELECT u.user_id, u.name, u.email,
-           (SELECT COUNT(*) FROM faculty_classes fc WHERE fc.faculty_id = u.user_id) AS total_classes,
+    SELECT DISTINCT u.user_id, u.name, u.email,
+           (SELECT COUNT(*) FROM faculty_classes fc WHERE fc.faculty_id = u.user_id AND fc.department = ?) AS total_classes,
            (SELECT COUNT(*) FROM activities a WHERE a.faculty_id = u.user_id) AS total_activities
-    FROM hod_faculty_mapping hfm
-    JOIN users u ON hfm.faculty_id = u.user_id
-    WHERE hfm.hod_id = ?
+    FROM users u
+    JOIN faculty_classes fc_main ON fc_main.faculty_id = u.user_id
+    WHERE fc_main.department = ? AND LOWER(u.role) = 'faculty'
     ORDER BY u.name ASC
 ");
-$stmtFac->execute([$hod_id]);
+$stmtFac->execute([$hod_department, $hod_department]);
 $mapped_faculty = $stmtFac->fetchAll(PDO::FETCH_ASSOC) ?: [];
 
 // LEVEL 2: ACADEMIC YEARS STATS
@@ -121,10 +96,9 @@ foreach ($years_list as $y_code => $y_name) {
                COUNT(DISTINCT fc.faculty_id) AS faculty_count,
                COUNT(fc.class_id) AS class_count
         FROM faculty_classes fc
-        JOIN hod_faculty_mapping hfm ON hfm.faculty_id = fc.faculty_id
-        WHERE hfm.hod_id = ? AND UPPER(fc.academic_year) = UPPER(?)
+        WHERE fc.department = ? AND UPPER(fc.academic_year) = UPPER(?)
     ");
-    $stmtY->execute([$hod_id, $y_code]);
+    $stmtY->execute([$hod_department, $y_code]);
     $rowY = $stmtY->fetch(PDO::FETCH_ASSOC);
     $year_stats[$y_code] = [
         'name' => $y_name,
@@ -143,12 +117,11 @@ if ($view === 'hod_subjects' && !empty($selected_year)) {
                COUNT(DISTINCT fc.faculty_id) AS faculty_count,
                COUNT(fc.class_id) AS class_count
         FROM faculty_classes fc
-        JOIN hod_faculty_mapping hfm ON hfm.faculty_id = fc.faculty_id
-        WHERE hfm.hod_id = ? AND UPPER(fc.academic_year) = UPPER(?)
+        WHERE fc.department = ? AND UPPER(fc.academic_year) = UPPER(?)
         GROUP BY fc.subject_code, fc.academic_year
         ORDER BY fc.subject_code ASC
     ");
-    $stmtSubj->execute([$hod_id, $selected_year]);
+    $stmtSubj->execute([$hod_department, $selected_year]);
     $year_subjects = $stmtSubj->fetchAll(PDO::FETCH_ASSOC) ?: [];
 }
 
@@ -161,12 +134,11 @@ if ($view === 'hod_subject_classes' && !empty($selected_year) && !empty($selecte
                u.name AS faculty_name, u.email AS faculty_email,
                (SELECT COUNT(*) FROM users us WHERE LOWER(us.role) = 'student' AND us.department = fc.department AND us.academic_year = fc.academic_year AND us.division = fc.division) AS student_count
         FROM faculty_classes fc
-        JOIN hod_faculty_mapping hfm ON hfm.faculty_id = fc.faculty_id
         JOIN users u ON u.user_id = fc.faculty_id
-        WHERE hfm.hod_id = ? AND UPPER(fc.academic_year) = UPPER(?) AND UPPER(fc.subject_code) = UPPER(?)
+        WHERE fc.department = ? AND UPPER(fc.academic_year) = UPPER(?) AND UPPER(fc.subject_code) = UPPER(?)
         ORDER BY u.name ASC, fc.class_name ASC
     ");
-    $stmtSubjCls->execute([$hod_id, $selected_year, $selected_subject]);
+    $stmtSubjCls->execute([$hod_department, $selected_year, $selected_subject]);
     $subject_classes = $stmtSubjCls->fetchAll(PDO::FETCH_ASSOC) ?: [];
 }
 
@@ -175,8 +147,8 @@ $faculty_info = null;
 $faculty_classes = [];
 if ($view === 'faculty_classes' && isset($_GET['fid'])) {
     $fid = (int)$_GET['fid'];
-    $check = $pdo->prepare("SELECT 1 FROM hod_faculty_mapping WHERE hod_id = ? AND faculty_id = ?");
-    $check->execute([$hod_id, $fid]);
+    $check = $pdo->prepare("SELECT 1 FROM faculty_classes WHERE department = ? AND faculty_id = ? LIMIT 1");
+    $check->execute([$hod_department, $fid]);
     
     if ($check->fetchColumn()) {
         $stmtFacInfo = $pdo->prepare("SELECT name, email FROM users WHERE user_id = ?");
@@ -186,10 +158,10 @@ if ($view === 'faculty_classes' && isset($_GET['fid'])) {
         $stmtClasses = $pdo->prepare("
             SELECT fc.class_id, fc.class_name, fc.subject_code, fc.academic_year,
                    (SELECT COUNT(*) FROM users us WHERE LOWER(us.role) = 'student' AND us.department = fc.department AND us.academic_year = fc.academic_year AND us.division = fc.division) AS student_count
-            FROM faculty_classes fc WHERE fc.faculty_id = ?
+            FROM faculty_classes fc WHERE fc.faculty_id = ? AND fc.department = ?
             ORDER BY fc.created_at DESC
         ");
-        $stmtClasses->execute([$fid]);
+        $stmtClasses->execute([$fid, $hod_department]);
         $faculty_classes = $stmtClasses->fetchAll(PDO::FETCH_ASSOC);
     } else {
         $message = "Unauthorized access to this faculty.";
@@ -209,8 +181,8 @@ if ($view === 'class_report' && isset($_GET['fid']) && isset($_GET['cid'])) {
     $fid = (int)$_GET['fid'];
     $cid = (int)$_GET['cid'];
     
-    $check = $pdo->prepare("SELECT 1 FROM hod_faculty_mapping WHERE hod_id = ? AND faculty_id = ?");
-    $check->execute([$hod_id, $fid]);
+    $check = $pdo->prepare("SELECT 1 FROM faculty_classes WHERE class_id = ? AND department = ?");
+    $check->execute([$cid, $hod_department]);
     
     if ($check->fetchColumn()) {
         $stmtFacInfo = $pdo->prepare("SELECT name FROM users WHERE user_id = ?");
@@ -301,12 +273,11 @@ if ($view === 'cumulative_classes' && !empty($selected_year)) {
                u.name AS faculty_name, u.email AS faculty_email,
                (SELECT COUNT(*) FROM users us WHERE LOWER(us.role) = 'student' AND us.department = fc.department AND us.academic_year = fc.academic_year AND us.division = fc.division) AS student_count
         FROM faculty_classes fc
-        JOIN hod_faculty_mapping hfm ON hfm.faculty_id = fc.faculty_id
         JOIN users u ON u.user_id = fc.faculty_id
-        WHERE hfm.hod_id = ? AND UPPER(fc.academic_year) = UPPER(?)
+        WHERE fc.department = ? AND UPPER(fc.academic_year) = UPPER(?)
         ORDER BY fc.class_name ASC, u.name ASC
     ");
-    $stmtCumCls->execute([$hod_id, $selected_year]);
+    $stmtCumCls->execute([$hod_department, $selected_year]);
     $cum_year_classes = $stmtCumCls->fetchAll(PDO::FETCH_ASSOC) ?: [];
 }
 
@@ -320,14 +291,12 @@ if ($view === 'cumulative_report' && isset($_GET['cid'])) {
     $cid = (int)$_GET['cid'];
     
     $stmtCumInfo = $pdo->prepare("
-        SELECT fc.class_id, fc.class_name, fc.subject_code, fc.academic_year, fc.faculty_id,
-               u.name AS faculty_name, u.email AS faculty_email
+        SELECT fc.class_id, fc.class_name, fc.subject_code, fc.academic_year, fc.department, fc.division, u.name AS faculty_name, fc.faculty_id
         FROM faculty_classes fc
-        JOIN hod_faculty_mapping hfm ON hfm.faculty_id = fc.faculty_id
         JOIN users u ON u.user_id = fc.faculty_id
-        WHERE fc.class_id = ? AND hfm.hod_id = ?
+        WHERE fc.class_id = ? AND fc.department = ?
     ");
-    $stmtCumInfo->execute([$cid, $hod_id]);
+    $stmtCumInfo->execute([$cid, $hod_department]);
     $cum_class_info = $stmtCumInfo->fetch(PDO::FETCH_ASSOC);
 
     if ($cum_class_info) {
@@ -434,8 +403,8 @@ if ($view === 'cumulative_report' && isset($_GET['cid'])) {
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
     <title>HOD Dashboard | SAAES</title>
     
-    <!-- Professional Fonts matching Landing Page -->
-    <link href="https://fonts.googleapis.com/css2?family=Space+Grotesk:wght@400;600;700&family=JetBrains+Mono:wght@100;400;700;800&family=Inter:wght@400;500;600&display=swap" rel="stylesheet">
+    <!-- Clean Academic Fonts -->
+    <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700&display=swap" rel="stylesheet">
     <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.4.0/css/all.min.css">
     
     <!-- PDF and Excel Libraries -->
@@ -444,205 +413,172 @@ if ($view === 'cumulative_report' && isset($_GET['cid'])) {
     
     <style>
     /* ==========================================================================
-       RIGID LIGHT SCI-FI DESIGN SYSTEM
+       TRADITIONAL ACADEMIC DESIGN SYSTEM
        ========================================================================== */
     :root {
-      --bg-base: #ffffff;
-      --bg-panel: #fcfcfd;
-      --text-dark: #0f172a;
-      --text-tech: #475569;
-      --text-light: #94a3b8;
+      --bg-body: #f8fafc;
+      --bg-card: #ffffff;
+      --navy-primary: #0f172a;
+      --blue-accent: #2563eb;
+      --text-main: #1e293b;
+      --text-muted: #64748b;
+      --border-color: #e2e8f0;
       
-      --accent-main: #7c3aed; /* Electric purple */
-      --accent-glow: #a855f7;
-      --accent-bg: rgba(124, 58, 237, 0.05);
+      --success: #10b981;
+      --danger: #ef4444;
+      --warning: #f59e0b;
       
-      --grid-size: 40px;
-      --border-harsh: 2px solid var(--text-dark);
+      --radius-md: 8px;
+      --radius-lg: 12px;
+      --shadow-sm: 0 1px 3px rgba(0,0,0,0.1);
+      --shadow-md: 0 4px 6px -1px rgba(0,0,0,0.1);
       
-      --font-head: 'Space Grotesk', sans-serif;
-      --font-mono: 'JetBrains Mono', monospace;
-      --font-body: 'Inter', sans-serif;
+      --font-main: 'Inter', system-ui, -apple-system, sans-serif;
     }
 
     * { margin: 0; padding: 0; box-sizing: border-box; }
     
     body {
-      font-family: var(--font-body);
-      background-color: var(--bg-base);
-      /* Blueprint Grid */
-      background-image: 
-          linear-gradient(rgba(124, 58, 237, 0.08) 1px, transparent 1px),
-          linear-gradient(90deg, rgba(124, 58, 237, 0.08) 1px, transparent 1px);
-      background-size: var(--grid-size) var(--grid-size);
-      background-position: center center;
-      color: var(--text-dark);
+      font-family: var(--font-main);
+      background-color: var(--bg-body);
+      color: var(--text-main);
       min-height: 100vh;
       display: flex;
       flex-direction: column;
-      line-height: 1.6;
-      /* PIXELATED PURPLE CUSTOM CURSOR */
-      cursor: url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' width='32' height='32' viewBox='0 0 32 32' shape-rendering='crispEdges'%3E%3Cpath d='M4 4v20l5-5 4 8 4-2-4-8h8L4 4z' fill='%237c3aed' stroke='white' stroke-width='2'/%3E%3C/svg%3E") 4 4, auto;
+      line-height: 1.5;
       -webkit-font-smoothing: antialiased;
     }
-    
-    /* PIXELATED HOVER CURSOR */
-    a, button, input, select, textarea, .interactive {
-        cursor: url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' width='32' height='32' viewBox='0 0 32 32' shape-rendering='crispEdges'%3E%3Cpath d='M4 4v20l5-5 4 8 4-2-4-8h8L4 4z' fill='%23a855f7' stroke='%230f172a' stroke-width='2.5'/%3E%3C/svg%3E") 4 4, pointer !important;
-    }
 
-    ::selection { background: var(--accent-main); color: #fff; }
+    ::selection { background: var(--blue-accent); color: #fff; }
     a { text-decoration: none; color: inherit; }
 
-    .app-container { display: flex; min-height: 100vh; width: 100%; position: relative; z-index: 1;}
+    .app-container { display: flex; min-height: 100vh; width: 100%; position: relative;}
 
     /* ================= SIDEBAR ================= */
     .sidebar {
-      width: 280px;
-      background: rgba(255, 255, 255, 0.95);
-      border-right: var(--border-harsh);
+      width: 260px;
+      background: var(--bg-card);
+      border-right: 1px solid var(--border-color);
       display: flex; flex-direction: column;
       position: fixed; top: 0; bottom: 0; left: 0; z-index: 200;
     }
     .sidebar-header {
-      padding: 1.5rem; border-bottom: var(--border-harsh);
+      padding: 1.5rem; border-bottom: 1px solid var(--border-color);
       display: flex; align-items: center; gap: 0.75rem;
     }
     .brand-logo {
       display: flex; align-items: center; gap: 0.75rem;
-      font-family: var(--font-head); font-size: 1.3rem; font-weight: 700; color: var(--text-dark); text-transform: uppercase;
+      font-weight: 700; font-size: 1.25rem; color: var(--navy-primary);
     }
-    .brand-logo i { color: var(--accent-main); font-size: 1.4rem; }
+    .brand-logo i { color: var(--blue-accent); font-size: 1.4rem; }
     
-    .sidebar-menu { padding: 1.5rem 1rem; display: flex; flex-direction: column; gap: 0.3rem; flex: 1; overflow-y: auto; }
-    .menu-label { font-family: var(--font-mono); font-size: 0.75rem; text-transform: uppercase; letter-spacing: 0.1em; color: var(--text-tech); margin: 1.5rem 0.5rem 0.5rem; font-weight: 700;}
+    .sidebar-menu { padding: 1.5rem 1rem; display: flex; flex-direction: column; gap: 0.25rem; flex: 1; overflow-y: auto; }
+    .menu-label { font-size: 0.75rem; color: var(--text-muted); margin: 1.5rem 0.5rem 0.5rem; font-weight: 600; text-transform: uppercase; letter-spacing: 0.05em;}
     
     .sidebar-link {
-      display: flex; align-items: center; gap: 0.85rem; padding: 0.8rem 1rem;
-      color: var(--text-tech); font-family: var(--font-mono);
-      font-size: 0.85rem; font-weight: 600; transition: all 0.2s ease;
-      border: 2px solid transparent; position: relative;
+      display: flex; align-items: center; gap: 0.75rem; padding: 0.65rem 1rem;
+      color: var(--text-main); font-weight: 500; font-size: 0.9rem; border-radius: var(--radius-md);
+      transition: all 0.2s ease;
     }
-    .sidebar-link::before {
-        content: '>'; position: absolute; left: 5px; opacity: 0; color: var(--text-dark); transition: 0.2s;
-    }
-    .sidebar-link:hover { color: var(--text-dark); padding-left: 1.5rem; }
-    .sidebar-link:hover::before { opacity: 1; }
+    .sidebar-link:hover { background: #f1f5f9; color: var(--blue-accent); }
     .sidebar-link.active {
-      background: var(--bg-base); color: var(--text-dark); 
-      border: 2px solid var(--text-dark);
-      box-shadow: 4px 4px 0px rgba(15, 23, 42, 0.1);
+      background: #eff6ff; color: var(--blue-accent); font-weight: 600;
     }
-    .sidebar-link i { font-size: 1.1rem; width: 22px; text-align: center; }
+    .sidebar-link i { font-size: 1rem; width: 20px; text-align: center; color: var(--text-muted); }
+    .sidebar-link.active i, .sidebar-link:hover i { color: var(--blue-accent); }
 
     .sidebar-user {
-      padding: 1.25rem; border-top: var(--border-harsh);
-      display: flex; align-items: center; gap: 0.75rem; background: var(--bg-panel);
+      padding: 1.25rem; border-top: 1px solid var(--border-color);
+      display: flex; align-items: center; gap: 0.75rem; background: var(--bg-card);
     }
     .avatar {
-      width: 40px; height: 40px; border: 2px solid var(--text-dark); background: var(--bg-base);
+      width: 36px; height: 36px; background: #f1f5f9; border-radius: 50%;
       display: flex; align-items: center; justify-content: center;
-      font-family: var(--font-head); font-weight: 700; font-size: 1.2rem; color: var(--accent-main);
+      font-weight: 600; font-size: 1rem; color: var(--navy-primary);
     }
 
     /* ================= MAIN CONTENT ================= */
-    .content-wrapper { margin-left: 280px; flex: 1; display: flex; flex-direction: column; min-height: 100vh; background: transparent; }
+    .content-wrapper { margin-left: 260px; flex: 1; display: flex; flex-direction: column; min-height: 100vh;}
     
     .top-navbar {
-      background: rgba(255, 255, 255, 0.95);
-      border-bottom: var(--border-harsh); padding: 1rem 2.5rem;
+      background: var(--bg-card); border-bottom: 1px solid var(--border-color); padding: 0 2rem;
       display: flex; justify-content: space-between; align-items: center;
-      position: sticky; top: 0; z-index: 100;
+      position: sticky; top: 0; z-index: 100; height: 70px;
     }
-    .top-navbar h3 { font-family: var(--font-mono); font-weight: 700; font-size: 1rem; color: var(--text-dark); text-transform: uppercase; margin: 0; }
+    .top-navbar h3 { font-weight: 600; font-size: 1.1rem; color: var(--navy-primary); margin: 0; }
     
-    .main-content { padding: 2rem 2.5rem; flex: 1; max-width: 1600px; width: 100%; margin: 0 auto; display: flex; flex-direction: column; gap: 2rem; }
+    .main-content { padding: 2rem; flex: 1; max-width: 1400px; width: 100%; margin: 0 auto; display: flex; flex-direction: column; gap: 1.5rem; }
 
     /* ================= MODULE CARDS ================= */
     .module-card {
-      background: var(--bg-panel); border: 2px solid var(--text-dark);
-      padding: 2.5rem; position: relative; transition: transform 0.2s, box-shadow 0.2s;
-      clip-path: polygon(0 0, calc(100% - 20px) 0, 100% 20px, 100% 100%, 20px 100%, 0 calc(100% - 20px));
+      background: var(--bg-card); border: 1px solid var(--border-color);
+      padding: 1.5rem 2rem; border-radius: var(--radius-lg); box-shadow: var(--shadow-sm); 
     }
-    .module-card::before { content: ''; position: absolute; top: 0; left: 0; width: 30px; height: 30px; border-right: 2px solid var(--text-dark); border-bottom: 2px solid var(--text-dark); }
-    .module-card:hover { transform: translate(-4px, -4px); box-shadow: 10px 10px 0px rgba(124, 58, 237, 1); border-color: var(--accent-main); }
     
     .hero-banner {
-      background: var(--bg-base); border: 2px solid var(--text-dark);
-      padding: 3rem; position: relative; overflow: hidden;
-      clip-path: polygon(0 0, calc(100% - 30px) 0, 100% 30px, 100% 100%, 0 100%);
+      background: linear-gradient(135deg, var(--navy-primary), #1e3a8a); color: #fff;
+      padding: 2.5rem 3rem; border-radius: var(--radius-lg); box-shadow: var(--shadow-md);
     }
-    .hero-banner::after {
-        content: ''; position: absolute; top: 0; right: 0; width: 30px; height: 30px; background: var(--text-dark);
-    }
-    .hero-content { position: relative; z-index: 2; display: flex; justify-content: space-between; align-items: center; flex-wrap: wrap; gap: 1.5rem; }
+    .hero-content { display: flex; justify-content: space-between; align-items: center; flex-wrap: wrap; gap: 1.5rem; }
+    .hero-title { font-size: 1.75rem; font-weight: 700; margin-bottom: 0.5rem; }
+    .hero-subtitle { color: #e2e8f0; font-size: 0.95rem; margin: 0; }
 
-    /* ================= METADATA LABELS (TAGS) ================= */
-    .sys-tag { 
-        font-family: var(--font-mono); font-size: 0.75rem; font-weight: 700; padding: 0.3rem 0.6rem; 
-        border: 1px solid var(--text-dark); color: var(--text-dark); text-transform: uppercase; display: inline-flex; align-items: center; gap: 0.4rem;
-    }
-    .sys-tag.accent { background: rgba(15, 23, 42, 0.05); color: var(--accent-main); border-color: var(--accent-main); }
+    /* ================= STATS GRID ================= */
+    .stats-grid { display: grid; grid-template-columns: repeat(auto-fit, minmax(200px, 1fr)); gap: 1.5rem; margin-bottom: 1rem;}
+    .stat-block { background: var(--bg-card); border: 1px solid var(--border-color); border-radius: var(--radius-lg); padding: 1.5rem; display: flex; flex-direction: column; justify-content: center; box-shadow: var(--shadow-sm); }
+    .stat-val { font-size: 2.25rem; font-weight: 700; color: var(--navy-primary); line-height: 1; margin-bottom: 0.5rem; }
+    .stat-label { font-size: 0.85rem; font-weight: 600; color: var(--text-muted); text-transform: uppercase; letter-spacing: 0.05em;}
+
+    /* ================= TAGS / BADGES ================= */
+    .sys-tag { font-size: 0.75rem; font-weight: 600; padding: 0.25rem 0.6rem; border-radius: 999px; display: inline-flex; align-items: center; gap: 0.4rem; background: #f1f5f9; color: var(--text-muted); }
+    .sys-tag.accent { background: #eff6ff; color: var(--blue-accent); }
+    .sys-tag.success { background: #dcfce7; color: var(--success); }
+    .sys-tag.danger { background: #fee2e2; color: var(--danger); }
+    .sys-tag.warning { background: #fef3c7; color: var(--warning); }
+    .sys-tag.info { background: #e0f2fe; color: #0284c7; }
 
     /* ================= BUTTONS ================= */
     .btn {
-        font-family: var(--font-mono); font-weight: 700; font-size: 0.85rem; text-transform: uppercase;
-        padding: 0.8rem 1.5rem; display: inline-flex; align-items: center; justify-content: center; gap: 0.5rem;
-        background: var(--bg-base); color: var(--text-dark); border: 2px solid var(--text-dark);
-        position: relative; overflow: hidden; z-index: 1;
-        clip-path: polygon(10px 0, 100% 0, 100% calc(100% - 10px), calc(100% - 10px) 100%, 0 100%, 0 10px);
-        transition: color 0.3s; cursor: pointer; text-decoration: none;
+        font-family: var(--font-main); font-weight: 500; font-size: 0.85rem;
+        padding: 0.6rem 1.2rem; display: inline-flex; align-items: center; justify-content: center; gap: 0.5rem;
+        border-radius: var(--radius-md); border: 1px solid transparent; cursor: pointer; transition: all 0.2s ease; text-decoration: none;
     }
-    .btn::before {
-        content: ''; position: absolute; top: 0; left: -100%; width: 100%; height: 100%;
-        background: var(--text-dark); z-index: -1; transition: left 0.3s cubic-bezier(0.7, 0, 0.3, 1);
-    }
-    .btn:hover { color: #fff; border-color: var(--text-dark); }
-    .btn:hover::before { left: 0; }
+    .btn-primary { background: var(--blue-accent); color: #fff; }
+    .btn-primary:hover { background: #1d4ed8; }
     
-    .btn-primary { background: var(--text-dark); color: #fff; border-color: var(--text-dark); }
-    .btn-primary:hover { color: #fff; }
-    .btn-primary::before { background: var(--accent-main); }
+    .btn-danger { background: var(--danger); color: #fff; }
+    .btn-danger:hover { background: #dc2626; }
 
-    .btn-danger { border-color: #ef4444; color: #ef4444; }
-    .btn-danger::before { background: #ef4444; }
-    .btn-danger:hover { color: #fff; border-color: #ef4444; }
-
-    .btn-outline { background: transparent; border: 2px solid var(--text-dark); color: var(--text-dark); }
-    .btn-outline:hover { background: var(--text-dark); color: #fff; }
-
-    /* ================= STATS GRID ================= */
-    .stats-grid { display: grid; grid-template-columns: repeat(auto-fit, minmax(200px, 1fr)); border: 2px solid var(--text-dark); background: var(--bg-panel); margin-bottom: 2rem;}
-    .stat-block { padding: 2rem 1.5rem; border-right: 2px solid var(--text-dark); display: flex; flex-direction: column; justify-content: center; }
-    .stat-block:last-child { border-right: none; }
-    .stat-val { font-family: var(--font-head); font-size: 3rem; font-weight: 700; color: var(--accent-main); line-height: 1; margin-bottom: 0.5rem; }
-    .stat-label { font-family: var(--font-mono); font-size: 0.8rem; font-weight: 700; text-transform: uppercase; color: var(--text-tech);}
+    .btn-outline { background: transparent; border-color: var(--border-color); color: var(--text-main); }
+    .btn-outline:hover { background: var(--bg-body); border-color: var(--text-muted); }
+    
+    .btn-outline.danger { color: var(--danger); border-color: #fca5a5; }
+    .btn-outline.danger:hover { background: #fef2f2; color: #dc2626; }
 
     /* ================= TABLES ================= */
-    .table-responsive { overflow-x: auto; background: var(--bg-base); border: 2px solid var(--text-dark); margin-bottom: 1rem; }
-    .custom-table { width: 100%; border-collapse: collapse; text-align: left; }
-    .custom-table th, .custom-table td { padding: 1rem 1.5rem; border-bottom: 1px solid var(--text-tech); font-size: 0.9rem; }
-    .custom-table th { background: var(--bg-panel); color: var(--text-dark); font-family: var(--font-mono); font-weight: 700; font-size: 0.8rem; text-transform: uppercase; }
-    .custom-table tbody tr { transition: background 0.2s ease; }
-    .custom-table tbody tr:hover { background: rgba(124, 58, 237, 0.05); }
+    .table-responsive { overflow-x: auto; border: 1px solid var(--border-color); border-radius: var(--radius-md); margin-bottom: 1rem; }
+    .custom-table { width: 100%; border-collapse: collapse; text-align: left; background: var(--bg-card); }
+    .custom-table th, .custom-table td { padding: 1rem; border-bottom: 1px solid var(--border-color); font-size: 0.9rem; vertical-align: middle; }
+    .custom-table th { background: var(--bg-body); color: var(--text-muted); font-weight: 600; font-size: 0.8rem; text-transform: uppercase; letter-spacing: 0.05em;}
+    .custom-table tbody tr:hover { background: #f8fafc; }
     .custom-table tbody tr:last-child td { border-bottom: none; }
     
-    /* ================= ALERTS & FORMS ================= */
-    .alert { font-family: var(--font-mono); font-size: 0.85rem; font-weight: 700; text-transform: uppercase; border: 2px solid transparent; padding: 1rem 1.5rem; display: flex; align-items: center; gap: 0.5rem; margin-bottom: 2rem;}
-    .alert-danger { background: var(--bg-base); color: #ef4444; border-color: #ef4444; }
-    .alert-success { background: var(--bg-base); color: #10b981; border-color: #10b981; }
+    /* ================= ALERTS ================= */
+    .alert { font-size: 0.9rem; font-weight: 500; border-radius: var(--radius-md); padding: 1rem 1.25rem; display: flex; align-items: center; gap: 0.75rem; margin-bottom: 1.5rem;}
+    .alert-danger { background: #fee2e2; color: #991b1b; border: 1px solid #fecaca; }
+    .alert-success { background: #dcfce7; color: #166534; border: 1px solid #bbf7d0; }
 
-    .form-control-custom {
-      width: 100%; padding: 0.85rem 1.2rem; background: var(--bg-base); border: 1px solid var(--text-tech);
-      color: var(--text-dark); font-family: var(--font-body); font-size: 0.95rem; outline: none; transition: border 0.2s;
-      border-radius: 0; -webkit-appearance: none;
+    /* ================= FORMS ================= */
+    .form-group { margin-bottom: 1.25rem; }
+    .form-group label { display: block; margin-bottom: 0.4rem; font-size: 0.85rem; font-weight: 600; color: var(--text-main); }
+    .form-control-custom, .form-select-custom {
+      width: 100%; padding: 0.6rem 1rem; background: var(--bg-body); border: 1px solid var(--border-color);
+      color: var(--text-main); font-family: inherit; font-size: 0.9rem; outline: none; transition: border 0.2s;
+      border-radius: var(--radius-md);
     }
-    .form-control-custom:focus { border-color: var(--text-dark); border-width: 2px; padding: calc(0.85rem - 1px) calc(1.2rem - 1px); }
+    .form-control-custom:focus, .form-select-custom:focus { border-color: var(--blue-accent); background: var(--bg-card); box-shadow: 0 0 0 3px rgba(37, 99, 235, 0.1); }
 
     @media (max-width: 1024px) {
-        .stats-grid { grid-template-columns: repeat(2, 1fr); }
-        .stat-block:nth-child(2) { border-right: none; }
-        .stat-block:nth-child(1), .stat-block:nth-child(2) { border-bottom: 2px solid var(--text-dark); }
         .sidebar { transform: translateX(-100%); transition: transform 0.3s; }
         .sidebar.show { transform: translateX(0); }
         .content-wrapper { margin-left: 0; }
@@ -656,7 +592,7 @@ if ($view === 'cumulative_report' && isset($_GET['cid'])) {
     <!-- LEFT SIDEBAR -->
     <aside class="sidebar" id="erpSidebar">
         <div class="sidebar-header">
-            <a href="hod_dashboard.php?view=dashboard" class="brand-logo interactive">
+            <a href="hod_dashboard.php?view=dashboard" class="brand-logo">
                 <i class="fa-solid fa-sitemap"></i>
                 <span>HOD Hub</span>
             </a>
@@ -664,32 +600,30 @@ if ($view === 'cumulative_report' && isset($_GET['cid'])) {
 
         <div class="sidebar-menu">
             <div class="menu-label">Navigation</div>
-            <a href="?view=dashboard" class="sidebar-link interactive <?php echo ($view === 'dashboard') ? 'active' : ''; ?>">
-                <span>Dashboard Overview</span>
+            <a href="?view=dashboard" class="sidebar-link <?php echo ($view === 'dashboard') ? 'active' : ''; ?>">
+                <i class="fa-solid fa-house"></i> <span>Dashboard Overview</span>
             </a>
-            <a href="?view=reports" class="sidebar-link interactive <?php echo in_array($view, ['reports', 'hod_subjects', 'hod_subject_classes', 'faculty_classes', 'class_report']) ? 'active' : ''; ?>">
-                <span>Performance Reports</span>
+            <a href="?view=reports" class="sidebar-link <?php echo in_array($view, ['reports', 'hod_subjects', 'hod_subject_classes', 'faculty_classes', 'class_report']) ? 'active' : ''; ?>">
+                <i class="fa-solid fa-chart-line"></i> <span>Performance Reports</span>
             </a>
-            <a href="?view=cumulative" class="sidebar-link interactive <?php echo in_array($view, ['cumulative', 'cumulative_classes', 'cumulative_report']) ? 'active' : ''; ?>">
-                <span>Cumulative Report</span>
+            <a href="?view=cumulative" class="sidebar-link <?php echo in_array($view, ['cumulative', 'cumulative_classes', 'cumulative_report']) ? 'active' : ''; ?>">
+                <i class="fa-solid fa-layer-group"></i> <span>Cumulative Report</span>
             </a>
-            <a href="?view=profile" class="sidebar-link interactive <?php echo ($view === 'profile') ? 'active' : ''; ?>">
-                <span>My Profile</span>
+            <a href="?view=profile" class="sidebar-link <?php echo ($view === 'profile') ? 'active' : ''; ?>">
+                <i class="fa-solid fa-user"></i> <span>My Profile</span>
             </a>
 
             <div class="menu-label">Account</div>
-            <a href="auth/logout.php" class="sidebar-link interactive" style="color: #ef4444;">
-                <span>Logout</span>
+            <a href="auth/logout.php" class="sidebar-link" style="color: var(--danger);">
+                <i class="fa-solid fa-power-off"></i> <span>Logout</span>
             </a>
         </div>
 
         <div class="sidebar-user">
-            <div style="display: flex; align-items: center; gap: 0.75rem;">
-                <div class="avatar"><?php echo strtoupper(substr($hod_name, 0, 1)); ?></div>
-                <div>
-                    <div style="font-family: var(--font-mono); font-weight: 700; font-size: 0.85rem; color: var(--text-dark);"><?php echo htmlspecialchars($hod_name); ?></div>
-                    <div style="font-family: var(--font-mono); font-size: 0.65rem; color: var(--text-tech); text-transform: uppercase; font-weight: 700;">HOD - Department</div>
-                </div>
+            <div class="avatar"><?php echo strtoupper(substr($hod_name, 0, 1)); ?></div>
+            <div>
+                <div style="font-weight: 600; font-size: 0.85rem; color: var(--navy-primary);"><?php echo htmlspecialchars($hod_name); ?></div>
+                <div style="font-size: 0.75rem; color: var(--text-muted);">HOD - Department</div>
             </div>
         </div>
     </aside>
@@ -698,7 +632,7 @@ if ($view === 'cumulative_report' && isset($_GET['cid'])) {
     <div class="content-wrapper">
         <header class="top-navbar">
             <div class="d-flex align-items-center gap-3">
-                <button class="btn btn-outline interactive d-lg-none" id="sidebarToggle" style="padding: 0.4rem 0.8rem;">Menu</button>
+                <button class="btn btn-outline d-lg-none" id="sidebarToggle" style="padding: 0.4rem 0.8rem;"><i class="fa-solid fa-bars"></i></button>
                 <h3>
                     <?php 
                     if ($view === 'dashboard') echo 'HOD Overview';
@@ -717,8 +651,8 @@ if ($view === 'cumulative_report' && isset($_GET['cid'])) {
             </div>
 
             <div style="display: flex; align-items: center; gap: 1rem;">
-                <div style="font-family: var(--font-mono); font-size: 0.85rem; font-weight: 700; background: var(--text-dark); color: #fff; padding: 0.4rem 0.8rem;">
-                    Time <span style="color: var(--accent-glow);">|</span> <span id="clock">00:00:00</span>
+                <div style="font-size: 0.85rem; font-weight: 600; color: var(--text-muted); display: flex; align-items: center; gap: 0.5rem;">
+                    <i class="fa-regular fa-clock"></i> <span id="clock">00:00:00</span>
                 </div>
             </div>
         </header>
@@ -739,94 +673,39 @@ if ($view === 'cumulative_report' && isset($_GET['cid'])) {
             <div class="hero-banner">
                 <div class="hero-content">
                     <div>
-                        <h1 style="font-family: var(--font-head); font-size: 2.2rem; margin-bottom: 0.5rem; font-weight: 700; text-transform: uppercase;">HOD Monitoring Hub</h1>
-                        <p style="color: var(--text-tech); font-family: var(--font-mono); font-size: 0.9rem;">Add faculty by their email address to monitor their class activity and student performance.</p>
+                        <h1 class="hero-title">HOD Monitoring Hub</h1>
+                        <p class="hero-subtitle">Automatically fetching faculty and classes for the <?php echo htmlspecialchars($hod_department); ?> department.</p>
                     </div>
                 </div>
             </div>
 
-            <!-- ADD FACULTY BY EMAIL CARD -->
-            <div class="module-card">
-                <h3 style="font-family: var(--font-head); font-size: 1.5rem; font-weight: 700; margin-bottom: 0.5rem; text-transform: uppercase; color: var(--text-dark);">
-                    Monitor New Faculty
-                </h3>
-                <p style="color: var(--text-tech); font-family: var(--font-mono); font-size: 0.85rem; margin-bottom: 1.5rem;">
-                    Enter the registered email address of a Faculty member to add them to your department monitoring list.
-                </p>
-
-                <form action="hod_dashboard.php?view=dashboard" method="POST" style="display: flex; gap: 1rem; max-width: 650px;">
-                    <input type="hidden" name="form_action" value="add_faculty_by_email">
-                    <input type="email" name="faculty_email" class="form-control-custom interactive" placeholder="Enter Faculty Email Address" required>
-                    <button type="submit" class="btn btn-primary interactive" style="white-space: nowrap;">
-                        Monitor Faculty
-                    </button>
-                </form>
-            </div>
-
             <!-- OVERVIEW STATS -->
-            <div class="stats-grid interactive">
+            <div class="stats-grid">
                 <div class="stat-block">
                     <div class="stat-val"><?php echo count($mapped_faculty); ?></div>
                     <div class="stat-label">Monitored Faculty</div>
                 </div>
                 <div class="stat-block">
-                    <div class="stat-val" style="color: #3b82f6;"><?php echo array_sum(array_column($mapped_faculty, 'total_classes')); ?></div>
+                    <div class="stat-val" style="color: var(--blue-accent);"><?php echo array_sum(array_column($mapped_faculty, 'total_classes')); ?></div>
                     <div class="stat-label">Total Classes Created</div>
                 </div>
                 <div class="stat-block">
-                    <div class="stat-val" style="color: #10b981;"><?php echo array_sum(array_column($mapped_faculty, 'total_activities')); ?></div>
+                    <div class="stat-val" style="color: var(--success);"><?php echo array_sum(array_column($mapped_faculty, 'total_activities')); ?></div>
                     <div class="stat-label">Total Activities Assigned</div>
                 </div>
             </div>
 
-            <!-- MONITORED FACULTY OVERVIEW -->
-            <div class="module-card">
-                <div style="display: flex; justify-content: space-between; align-items: center; margin-bottom: 1.5rem;">
-                    <h3 style="font-family: var(--font-head); font-size: 1.4rem; font-weight: 700; text-transform: uppercase;">Monitored Faculty Summary</h3>
-                    <a href="?view=reports" class="btn btn-outline interactive" style="font-size: 0.75rem;">View Full Directory</a>
-                </div>
 
-                <div class="table-responsive">
-                    <table class="custom-table">
-                        <thead>
-                            <tr>
-                                <th>Faculty Name</th>
-                                <th>Email</th>
-                                <th>Classes</th>
-                                <th>Activities</th>
-                                <th style="text-align: right;">Action</th>
-                            </tr>
-                        </thead>
-                        <tbody>
-                            <?php if (empty($mapped_faculty)): ?>
-                                <tr><td colspan="5" style="text-align: center; color: var(--text-tech); padding: 3rem; font-family: var(--font-mono); font-weight: 700;">No faculty linked yet. Input a faculty email address above to begin monitoring.</td></tr>
-                            <?php else: ?>
-                                <?php foreach ($mapped_faculty as $fac): ?>
-                                <tr>
-                                    <td><strong style="font-family: var(--font-body); text-transform: uppercase;"><?php echo htmlspecialchars($fac['name']); ?></strong></td>
-                                    <td style="font-family: var(--font-mono); font-size: 0.85rem; color: var(--text-tech);"><?php echo htmlspecialchars($fac['email']); ?></td>
-                                    <td><span class="sys-tag"><?php echo $fac['total_classes']; ?> Classes</span></td>
-                                    <td><span class="sys-tag accent"><?php echo $fac['total_activities']; ?> Activities</span></td>
-                                    <td style="text-align: right;">
-                                        <a href="?view=faculty_classes&fid=<?php echo $fac['user_id']; ?>" class="btn btn-primary interactive" style="font-size: 0.75rem; padding: 0.4rem 0.8rem;">
-                                            View Classes
-                                        </a>
-                                    </td>
-                                </tr>
-                                <?php endforeach; ?>
-                            <?php endif; ?>
-                        </tbody>
-                    </table>
-                </div>
-            </div>
+
+
 
         <!-- VIEW 2: REPORTS / ACADEMIC YEARS SELECTION -->
         <?php elseif ($view === 'reports'): ?>
             <div class="hero-banner" style="margin-bottom: 2rem;">
                 <div class="hero-content">
                     <div>
-                        <h1 style="font-family: var(--font-head); font-size: 2rem; margin-bottom: 0.5rem; font-weight: 700; text-transform: uppercase;">ACADEMIC YEAR PERFORMANCE REPORTS</h1>
-                        <p style="color: var(--text-tech); font-family: var(--font-mono); font-size: 0.85rem;">Select an academic year to inspect taught subjects, faculty classes, and converted 20-mark average performance reports.</p>
+                        <h1 class="hero-title">Academic Year Performance Reports</h1>
+                        <p class="hero-subtitle">Select an academic year to inspect taught subjects, faculty classes, and converted 20-mark average performance reports.</p>
                     </div>
                 </div>
             </div>
@@ -834,86 +713,39 @@ if ($view === 'cumulative_report' && isset($_GET['cid'])) {
             <!-- YEAR SELECTION CARDS -->
             <div style="display: grid; grid-template-columns: repeat(auto-fit, minmax(240px, 1fr)); gap: 1.5rem; margin-bottom: 2.5rem;">
                 <?php foreach ($year_stats as $y_code => $y_data): ?>
-                <div class="module-card interactive" style="padding: 2rem; display: flex; flex-direction: column; justify-content: space-between;">
+                <div class="module-card" style="display: flex; flex-direction: column; justify-content: space-between;">
                     <div>
                         <div style="display: flex; justify-content: space-between; align-items: center; margin-bottom: 1rem;">
-                            <span class="sys-tag accent" style="font-size: 0.9rem; font-weight: 800;"><?php echo $y_code; ?></span>
-                            <span style="font-family: var(--font-mono); font-size: 0.75rem; color: var(--text-tech); font-weight: 700;"><?php echo $y_data['class_count']; ?> Classes</span>
+                            <span class="sys-tag accent" style="font-size: 0.85rem;"><?php echo $y_code; ?></span>
+                            <span style="font-size: 0.8rem; color: var(--text-muted); font-weight: 600;"><?php echo $y_data['class_count']; ?> Classes</span>
                         </div>
-                        <h3 style="font-family: var(--font-head); font-size: 1.3rem; font-weight: 700; text-transform: uppercase; margin-bottom: 1rem; color: var(--text-dark);"><?php echo htmlspecialchars($y_data['name']); ?></h3>
+                        <h3 style="font-size: 1.25rem; font-weight: 700; margin-bottom: 1rem; color: var(--text-main);"><?php echo htmlspecialchars($y_data['name']); ?></h3>
                         
-                        <div style="font-family: var(--font-mono); font-size: 0.85rem; color: var(--text-tech); margin-bottom: 1.5rem; display: flex; flex-direction: column; gap: 0.4rem;">
+                        <div style="font-size: 0.85rem; color: var(--text-muted); margin-bottom: 1.5rem; display: flex; flex-direction: column; gap: 0.4rem;">
                             <div>Subjects: <strong><?php echo $y_data['subject_count']; ?></strong></div>
                             <div>Teaching Faculty: <strong><?php echo $y_data['faculty_count']; ?></strong></div>
                         </div>
                     </div>
 
-                    <a href="?view=hod_subjects&year=<?php echo urlencode($y_code); ?>" class="btn btn-primary interactive" style="width: 100%; font-size: 0.8rem;">
+                    <a href="?view=hod_subjects&year=<?php echo urlencode($y_code); ?>" class="btn btn-outline" style="width: 100%; font-size: 0.8rem;">
                         View Subjects &rarr;
                     </a>
                 </div>
                 <?php endforeach; ?>
             </div>
 
-            <!-- DIRECT MONITORED FACULTY DIRECTORY -->
-            <div class="module-card">
-                <div style="display: flex; justify-content: space-between; align-items: center; margin-bottom: 1.5rem;">
-                    <div>
-                        <h3 style="font-family: var(--font-head); font-size: 1.4rem; font-weight: 700; text-transform: uppercase;">Direct Faculty Directory</h3>
-                        <p style="color: var(--text-tech); font-family: var(--font-mono); font-size: 0.85rem;">Or select a faculty member directly to view all their classes across years.</p>
-                    </div>
-                    <span class="sys-tag accent">Total: <?php echo count($mapped_faculty); ?></span>
-                </div>
 
-                <div class="table-responsive">
-                    <table class="custom-table">
-                        <thead>
-                            <tr>
-                                <th>Faculty Name</th>
-                                <th>Email</th>
-                                <th>Classes Created</th>
-                                <th style="text-align: right;">Actions</th>
-                            </tr>
-                        </thead>
-                        <tbody>
-                            <?php if (empty($mapped_faculty)): ?>
-                                <tr><td colspan="4" style="text-align: center; color: var(--text-tech); padding: 3rem; font-family: var(--font-mono); font-weight: 700;">No faculty linked. Go to <a href="?view=dashboard" style="color: var(--accent-main); text-decoration: underline;">Dashboard Overview</a> to add faculty by email.</td></tr>
-                            <?php else: ?>
-                                <?php foreach ($mapped_faculty as $fac): ?>
-                                <tr>
-                                    <td><strong style="font-family: var(--font-body); font-size: 1rem; text-transform: uppercase;"><?php echo htmlspecialchars($fac['name']); ?></strong></td>
-                                    <td style="font-family: var(--font-mono); font-size: 0.85rem; color: var(--text-tech);"><?php echo htmlspecialchars($fac['email']); ?></td>
-                                    <td><span class="sys-tag accent"><?php echo $fac['total_classes']; ?> Active Classes</span></td>
-                                    <td style="text-align: right; display: flex; justify-content: flex-end; gap: 0.5rem;">
-                                        <a href="?view=faculty_classes&fid=<?php echo $fac['user_id']; ?>" class="btn btn-primary interactive" style="font-size: 0.75rem; padding: 0.4rem 0.8rem;">
-                                            View Classes
-                                        </a>
-                                        <form action="hod_dashboard.php?view=reports" method="POST" style="display: inline;" onsubmit="return confirm('Stop monitoring this faculty member?');">
-                                            <input type="hidden" name="form_action" value="remove_faculty">
-                                            <input type="hidden" name="faculty_id" value="<?php echo $fac['user_id']; ?>">
-                                            <button type="submit" class="btn btn-danger interactive" style="font-size: 0.75rem; padding: 0.4rem 0.8rem;">
-                                                Unlink
-                                            </button>
-                                        </form>
-                                    </td>
-                                </tr>
-                                <?php endforeach; ?>
-                            <?php endif; ?>
-                        </tbody>
-                    </table>
-                </div>
-            </div>
 
         <!-- DRILL-DOWN VIEW: SUBJECTS IN A YEAR -->
         <?php elseif ($view === 'hod_subjects'): ?>
             <div style="margin-bottom: 1.5rem;">
-                <a href="?view=reports" class="btn btn-outline interactive" style="margin-bottom: 1rem; font-size: 0.8rem;">
-                    &larr; Back to Year Selection
+                <a href="?view=reports" class="btn btn-outline" style="margin-bottom: 1rem; font-size: 0.8rem;">
+                    <i class="fa-solid fa-arrow-left"></i> Back to Year Selection
                 </a>
-                <h2 style="font-family: var(--font-head); font-size: 2rem; font-weight: 700; text-transform: uppercase;">
+                <h2 style="font-size: 1.8rem; font-weight: 700; color: var(--navy-primary); margin-bottom: 0.2rem;">
                     Subjects in <?php echo htmlspecialchars($years_list[$selected_year] ?? $selected_year); ?>
                 </h2>
-                <p style="font-family: var(--font-mono); font-size: 0.85rem; color: var(--text-tech);">Select a subject to view faculty members teaching it and their created classes.</p>
+                <p style="font-size: 0.9rem; color: var(--text-muted);">Select a subject to view faculty members teaching it and their created classes.</p>
             </div>
 
             <div class="module-card">
@@ -930,16 +762,16 @@ if ($view === 'cumulative_report' && isset($_GET['cid'])) {
                         </thead>
                         <tbody>
                             <?php if (empty($year_subjects)): ?>
-                                <tr><td colspan="5" style="text-align: center; color: var(--text-tech); padding: 3rem; font-family: var(--font-mono); font-weight: 700;">No faculty classes created for this academic year yet.</td></tr>
+                                <tr><td colspan="5" style="text-align: center; color: var(--text-muted); padding: 3rem; font-weight: 500;">No faculty classes created for this academic year yet.</td></tr>
                             <?php else: ?>
                                 <?php foreach ($year_subjects as $subj): ?>
                                 <tr>
-                                    <td><strong style="font-family: var(--font-head); font-size: 1.1rem; text-transform: uppercase; color: var(--accent-main);"><?php echo htmlspecialchars($subj['subject_code'] ?: 'General Subject'); ?></strong></td>
+                                    <td><strong style="font-size: 1rem; color: var(--navy-primary);"><?php echo htmlspecialchars($subj['subject_code'] ?: 'General Subject'); ?></strong></td>
                                     <td><span class="sys-tag"><?php echo htmlspecialchars($subj['academic_year']); ?></span></td>
-                                    <td style="font-family: var(--font-mono); font-weight: 700; color: var(--text-tech);"><?php echo $subj['faculty_count']; ?> Faculty Member(s)</td>
-                                    <td style="font-family: var(--font-mono); font-weight: 700; color: var(--text-tech);"><?php echo $subj['class_count']; ?> Class(es)</td>
+                                    <td style="font-weight: 600; font-size: 0.85rem; color: var(--text-muted);"><?php echo $subj['faculty_count']; ?> Faculty Member(s)</td>
+                                    <td style="font-weight: 600; font-size: 0.85rem; color: var(--text-muted);"><?php echo $subj['class_count']; ?> Class(es)</td>
                                     <td style="text-align: right;">
-                                        <a href="?view=hod_subject_classes&year=<?php echo urlencode($selected_year); ?>&subject=<?php echo urlencode($subj['subject_code']); ?>" class="btn btn-primary interactive" style="font-size: 0.75rem; padding: 0.4rem 0.8rem;">
+                                        <a href="?view=hod_subject_classes&year=<?php echo urlencode($selected_year); ?>&subject=<?php echo urlencode($subj['subject_code']); ?>" class="btn btn-primary" style="font-size: 0.8rem; padding: 0.4rem 0.8rem;">
                                             View Faculty & Classes &rarr;
                                         </a>
                                     </td>
@@ -954,13 +786,13 @@ if ($view === 'cumulative_report' && isset($_GET['cid'])) {
         <!-- DRILL-DOWN VIEW: FACULTY & CLASSES FOR A SUBJECT & YEAR -->
         <?php elseif ($view === 'hod_subject_classes'): ?>
             <div style="margin-bottom: 1.5rem;">
-                <a href="?view=hod_subjects&year=<?php echo urlencode($selected_year); ?>" class="btn btn-outline interactive" style="margin-bottom: 1rem; font-size: 0.8rem;">
-                    &larr; Back to Subjects
+                <a href="?view=hod_subjects&year=<?php echo urlencode($selected_year); ?>" class="btn btn-outline" style="margin-bottom: 1rem; font-size: 0.8rem;">
+                    <i class="fa-solid fa-arrow-left"></i> Back to Subjects
                 </a>
-                <h2 style="font-family: var(--font-head); font-size: 2rem; font-weight: 700; text-transform: uppercase;">
+                <h2 style="font-size: 1.8rem; font-weight: 700; color: var(--navy-primary); margin-bottom: 0.2rem;">
                     Subject: <?php echo htmlspecialchars($selected_subject ?: 'General'); ?> (<?php echo htmlspecialchars($selected_year); ?>)
                 </h2>
-                <p style="font-family: var(--font-mono); font-size: 0.85rem; color: var(--text-tech);">Classes created by faculty members for this subject.</p>
+                <p style="font-size: 0.9rem; color: var(--text-muted);">Classes created by faculty members for this subject.</p>
             </div>
 
             <div class="module-card">
@@ -977,16 +809,16 @@ if ($view === 'cumulative_report' && isset($_GET['cid'])) {
                         </thead>
                         <tbody>
                             <?php if (empty($subject_classes)): ?>
-                                <tr><td colspan="5" style="text-align: center; color: var(--text-tech); padding: 3rem; font-family: var(--font-mono); font-weight: 700;">No classes found for this subject and year.</td></tr>
+                                <tr><td colspan="5" style="text-align: center; color: var(--text-muted); padding: 3rem; font-weight: 500;">No classes found for this subject and year.</td></tr>
                             <?php else: ?>
                                 <?php foreach ($subject_classes as $s_cls): ?>
                                 <tr>
-                                    <td><strong style="font-family: var(--font-head); font-size: 1.05rem; text-transform: uppercase;"><?php echo htmlspecialchars($s_cls['class_name']); ?></strong></td>
-                                    <td><strong style="font-family: var(--font-body); font-size: 0.95rem; text-transform: uppercase;"><?php echo htmlspecialchars($s_cls['faculty_name']); ?></strong></td>
-                                    <td style="font-family: var(--font-mono); font-size: 0.85rem; color: var(--text-tech);"><?php echo htmlspecialchars($s_cls['faculty_email']); ?></td>
-                                    <td style="font-family: var(--font-mono); font-weight: 700; color: var(--text-tech);"><?php echo $s_cls['student_count']; ?> Students</td>
+                                    <td><strong style="font-size: 1rem; color: var(--text-main);"><?php echo htmlspecialchars($s_cls['class_name']); ?></strong></td>
+                                    <td><strong style="font-size: 0.9rem; color: var(--text-main);"><?php echo htmlspecialchars($s_cls['faculty_name']); ?></strong></td>
+                                    <td style="font-size: 0.85rem; color: var(--text-muted);"><?php echo htmlspecialchars($s_cls['faculty_email']); ?></td>
+                                    <td style="font-weight: 600; font-size: 0.85rem; color: var(--text-muted);"><?php echo $s_cls['student_count']; ?> Students</td>
                                     <td style="text-align: right;">
-                                        <a href="?view=class_report&fid=<?php echo $s_cls['faculty_id']; ?>&cid=<?php echo $s_cls['class_id']; ?>" class="btn btn-primary interactive" style="font-size: 0.75rem; padding: 0.4rem 0.8rem;">
+                                        <a href="?view=class_report&fid=<?php echo $s_cls['faculty_id']; ?>&cid=<?php echo $s_cls['class_id']; ?>" class="btn btn-primary" style="font-size: 0.8rem; padding: 0.4rem 0.8rem;">
                                             View Class Report &rarr;
                                         </a>
                                     </td>
@@ -1001,11 +833,11 @@ if ($view === 'cumulative_report' && isset($_GET['cid'])) {
         <!-- VIEW 3: FACULTY CLASSES LIST (DIRECT) -->
         <?php elseif ($view === 'faculty_classes' && $faculty_info): ?>
             <div style="margin-bottom: 1.5rem;">
-                <a href="?view=reports" class="btn btn-outline interactive" style="margin-bottom: 1rem; font-size: 0.8rem;">
-                    &larr; Back to Directory
+                <a href="?view=reports" class="btn btn-outline" style="margin-bottom: 1rem; font-size: 0.8rem;">
+                    <i class="fa-solid fa-arrow-left"></i> Back to Directory
                 </a>
-                <h2 style="font-family: var(--font-head); font-size: 2rem; font-weight: 700; text-transform: uppercase;">Classes Managed by <?php echo htmlspecialchars($faculty_info['name']); ?></h2>
-                <p style="font-family: var(--font-mono); font-size: 0.85rem; color: var(--text-tech);">Email: <strong><?php echo htmlspecialchars($faculty_info['email']); ?></strong></p>
+                <h2 style="font-size: 1.8rem; font-weight: 700; color: var(--navy-primary); margin-bottom: 0.2rem;">Classes Managed by <?php echo htmlspecialchars($faculty_info['name']); ?></h2>
+                <p style="font-size: 0.9rem; color: var(--text-muted);">Email: <strong><?php echo htmlspecialchars($faculty_info['email']); ?></strong></p>
             </div>
 
             <div class="module-card">
@@ -1022,16 +854,16 @@ if ($view === 'cumulative_report' && isset($_GET['cid'])) {
                         </thead>
                         <tbody>
                             <?php if (empty($faculty_classes)): ?>
-                                <tr><td colspan="5" style="text-align: center; color: var(--text-tech); padding: 3rem; font-family: var(--font-mono); font-weight: 700;">This faculty member hasn't created any classes yet.</td></tr>
+                                <tr><td colspan="5" style="text-align: center; color: var(--text-muted); padding: 3rem; font-weight: 500;">This faculty member hasn't created any classes yet.</td></tr>
                             <?php else: ?>
                                 <?php foreach ($faculty_classes as $cls): ?>
                                 <tr>
-                                    <td><strong style="font-family: var(--font-head); font-size: 1.05rem; text-transform: uppercase;"><?php echo htmlspecialchars($cls['class_name']); ?></strong></td>
+                                    <td><strong style="font-size: 1rem; color: var(--text-main);"><?php echo htmlspecialchars($cls['class_name']); ?></strong></td>
                                     <td><span class="sys-tag"><?php echo htmlspecialchars($cls['academic_year'] ?? 'FY'); ?></span></td>
-                                    <td><span style="font-family: var(--font-mono); font-weight: 700; color: var(--accent-main);"><?php echo htmlspecialchars($cls['subject_code'] ?: 'N/A'); ?></span></td>
-                                    <td style="font-family: var(--font-mono); font-weight: 700; color: var(--text-tech);"><?php echo $cls['student_count']; ?> Students</td>
+                                    <td><span style="font-weight: 600; font-size: 0.85rem; color: var(--blue-accent);"><?php echo htmlspecialchars($cls['subject_code'] ?: 'N/A'); ?></span></td>
+                                    <td style="font-weight: 600; font-size: 0.85rem; color: var(--text-muted);"><?php echo $cls['student_count']; ?> Students</td>
                                     <td style="text-align: right;">
-                                        <a href="?view=class_report&fid=<?php echo $fid; ?>&cid=<?php echo $cls['class_id']; ?>" class="btn btn-primary interactive" style="font-size: 0.75rem; padding: 0.4rem 0.8rem;">
+                                        <a href="?view=class_report&fid=<?php echo $fid; ?>&cid=<?php echo $cls['class_id']; ?>" class="btn btn-primary" style="font-size: 0.8rem; padding: 0.4rem 0.8rem;">
                                             View Class Report &rarr;
                                         </a>
                                     </td>
@@ -1047,35 +879,35 @@ if ($view === 'cumulative_report' && isset($_GET['cid'])) {
         <?php elseif ($view === 'class_report' && $selected_class): ?>
             <div style="display: flex; justify-content: space-between; align-items: flex-start; flex-wrap: wrap; gap: 1rem; margin-bottom: 2rem;">
                 <div>
-                    <a href="javascript:history.back()" class="btn btn-outline interactive" style="margin-bottom: 1rem; font-size: 0.8rem;">
-                        &larr; Back
+                    <a href="javascript:history.back()" class="btn btn-outline" style="margin-bottom: 1rem; font-size: 0.8rem;">
+                        <i class="fa-solid fa-arrow-left"></i> Back
                     </a>
-                    <h2 style="font-family: var(--font-head); font-size: 2rem; font-weight: 700; text-transform: uppercase;">Class Report: <?php echo htmlspecialchars($selected_class['class_name']); ?></h2>
-                    <p style="font-family: var(--font-mono); font-size: 0.85rem; color: var(--text-tech);">
+                    <h2 style="font-size: 1.8rem; font-weight: 700; color: var(--navy-primary); margin-bottom: 0.2rem;">Class Report: <?php echo htmlspecialchars($selected_class['class_name']); ?></h2>
+                    <p style="font-size: 0.9rem; color: var(--text-muted); margin: 0;">
                         Faculty: <strong><?php echo htmlspecialchars($faculty_info['name'] ?? 'Faculty'); ?></strong> | 
                         Year: <span class="sys-tag"><?php echo htmlspecialchars($selected_class['academic_year'] ?? 'FY'); ?></span> | 
-                        Subject: <strong style="color: var(--accent-main);"><?php echo htmlspecialchars($selected_class['subject_code'] ?: 'General'); ?></strong>
+                        Subject: <strong style="color: var(--blue-accent);"><?php echo htmlspecialchars($selected_class['subject_code'] ?: 'General'); ?></strong>
                     </p>
                 </div>
                 <div style="display: flex; gap: 0.5rem;">
-                    <button class="btn btn-outline interactive" onclick="exportPDF()">Export PDF</button>
-                    <button class="btn btn-primary interactive" onclick="exportExcel()">Export Excel</button>
+                    <button class="btn btn-outline" onclick="exportPDF()"><i class="fa-solid fa-file-pdf text-danger me-1"></i> Export PDF</button>
+                    <button class="btn btn-primary" onclick="exportExcel()"><i class="fa-solid fa-file-excel me-1"></i> Export Excel</button>
                 </div>
             </div>
 
             <div id="exportTable">
                 <!-- STATS SUMMARY -->
-                <div class="stats-grid interactive" style="margin-bottom: 2rem;">
+                <div class="stats-grid" style="margin-bottom: 2rem;">
                     <div class="stat-block">
                         <div class="stat-val"><?php echo count($class_students); ?></div>
                         <div class="stat-label">Enrolled Students</div>
                     </div>
                     <div class="stat-block">
-                        <div class="stat-val" style="color: #3b82f6;"><?php echo count($class_activities); ?></div>
+                        <div class="stat-val" style="color: var(--blue-accent);"><?php echo count($class_activities); ?></div>
                         <div class="stat-label">Total Activities</div>
                     </div>
                     <div class="stat-block">
-                        <div class="stat-val" style="color: #10b981;"><?php echo $class_total_max_marks; ?></div>
+                        <div class="stat-val" style="color: var(--success);"><?php echo $class_total_max_marks; ?></div>
                         <div class="stat-label">Total Max Marks</div>
                     </div>
                     <div class="stat-block">
@@ -1086,17 +918,17 @@ if ($view === 'cumulative_report' && isset($_GET['cid'])) {
                                 $class_avg_20 = round($sum_20 / count($class_students), 2);
                             }
                         ?>
-                        <div class="stat-val" style="color: var(--accent-main);"><?php echo $class_avg_20; ?> <span style="font-size: 1rem; color: var(--text-tech);">/ 20</span></div>
+                        <div class="stat-val" style="color: var(--navy-primary);"><?php echo $class_avg_20; ?> <span style="font-size: 1rem; color: var(--text-muted);">/ 20</span></div>
                         <div class="stat-label">Class Scaled Avg (/20)</div>
                     </div>
                 </div>
 
                 <!-- ENROLLED STUDENTS PERFORMANCE ROSTER (SCALED MARKS TO 20) -->
                 <div class="module-card" style="margin-bottom: 2rem;">
-                    <div style="display: flex; justify-content: space-between; align-items: center; margin-bottom: 1.5rem;">
+                    <div style="display: flex; justify-content: space-between; align-items: center; margin-bottom: 1.5rem; flex-wrap: wrap; gap: 1rem;">
                         <div>
-                            <h3 style="font-family: var(--font-head); font-size: 1.4rem; font-weight: 700; text-transform: uppercase;">Student Marks &amp; Converted Average (Scale of 20)</h3>
-                            <p style="font-family: var(--font-mono); font-size: 0.8rem; color: var(--text-tech);">
+                            <h3 style="font-size: 1.25rem; font-weight: 700; color: var(--navy-primary); margin-bottom: 0.2rem;">Student Marks &amp; Converted Average (Scale of 20)</h3>
+                            <p style="font-size: 0.85rem; color: var(--text-muted); margin: 0;">
                                 Formula: <strong>(Total Marks Obtained &divide; Total Max Marks) &times; 20</strong>
                             </p>
                         </div>
@@ -1118,24 +950,24 @@ if ($view === 'cumulative_report' && isset($_GET['cid'])) {
                             </thead>
                             <tbody>
                                 <?php if (empty($class_students)): ?>
-                                    <tr><td colspan="7" style="text-align: center; color: var(--text-tech); padding: 2rem; font-family: var(--font-mono); font-weight: 700;">No students added to this class yet.</td></tr>
+                                    <tr><td colspan="7" style="text-align: center; color: var(--text-muted); padding: 3rem; font-weight: 500;">No students added to this class yet.</td></tr>
                                 <?php else: ?>
                                     <?php foreach ($class_students as $st): ?>
                                     <tr>
-                                        <td style="font-family: var(--font-mono); font-weight: 700; color: var(--accent-main);"><?php echo htmlspecialchars($st['student_prn']); ?></td>
-                                        <td><strong style="font-family: var(--font-body); font-weight: 600; text-transform: uppercase;"><?php echo htmlspecialchars($st['student_name'] ?: 'Registered Student'); ?></strong></td>
-                                        <td style="font-family: var(--font-mono); font-weight: 700;"><?php echo htmlspecialchars($st['roll_no'] ?: '-'); ?></td>
-                                        <td style="text-align: center; font-family: var(--font-mono); font-weight: 700; color: #3b82f6;">
+                                        <td style="font-weight: 600; color: var(--navy-primary);"><?php echo htmlspecialchars($st['student_prn']); ?></td>
+                                        <td><strong style="font-weight: 500; font-size: 0.95rem; color: var(--text-main);"><?php echo htmlspecialchars($st['student_name'] ?: 'Registered Student'); ?></strong></td>
+                                        <td style="font-weight: 600; color: var(--text-main);"><?php echo htmlspecialchars($st['roll_no'] ?: '-'); ?></td>
+                                        <td style="text-align: center; font-weight: 600; color: var(--blue-accent);">
                                             <?php echo $st['evaluated_count']; ?> / <?php echo count($class_activities); ?>
                                         </td>
-                                        <td style="font-family: var(--font-mono); font-weight: 700;">
-                                            <?php echo $st['obtained_marks']; ?> <span style="font-size: 0.75rem; color: var(--text-tech);">/ <?php echo $st['total_max_marks']; ?></span>
+                                        <td style="font-weight: 600; color: var(--text-main);">
+                                            <?php echo $st['obtained_marks']; ?> <span style="font-size: 0.75rem; color: var(--text-muted);">/ <?php echo $st['total_max_marks']; ?></span>
                                         </td>
-                                        <td style="font-family: var(--font-mono); font-weight: 700; color: #10b981;">
+                                        <td style="font-weight: 600; color: var(--success);">
                                             <?php echo number_format($st['percentage'], 2); ?>%
                                         </td>
                                         <td style="text-align: right;">
-                                            <span class="sys-tag accent" style="font-size: 1rem; font-weight: 800; padding: 0.4rem 0.8rem; background: rgba(124, 58, 237, 0.1);">
+                                            <span class="sys-tag accent" style="font-size: 1rem; font-weight: 700; padding: 0.4rem 0.8rem;">
                                                 <?php echo number_format($st['scaled_score_20'], 2); ?> / 20
                                             </span>
                                         </td>
@@ -1149,7 +981,7 @@ if ($view === 'cumulative_report' && isset($_GET['cid'])) {
 
                 <!-- ACTIVITIES ANALYTICS -->
                 <div class="module-card">
-                    <h3 style="font-family: var(--font-head); font-size: 1.4rem; font-weight: 700; margin-bottom: 1.5rem; text-transform: uppercase;">Activity Breakdown</h3>
+                    <h3 style="font-size: 1.25rem; font-weight: 700; margin-bottom: 1.5rem; color: var(--navy-primary);">Activity Breakdown</h3>
                     <div class="table-responsive">
                         <table class="custom-table">
                             <thead>
@@ -1163,52 +995,55 @@ if ($view === 'cumulative_report' && isset($_GET['cid'])) {
                             </thead>
                             <tbody>
                                 <?php if (empty($class_activities)): ?>
-                                    <tr><td colspan="5" style="text-align: center; color: var(--text-tech); padding: 2rem; font-family: var(--font-mono); font-weight: 700;">No activities assigned for this class yet.</td></tr>
+                                    <tr><td colspan="5" style="text-align: center; color: var(--text-muted); padding: 3rem; font-weight: 500;">No activities assigned for this class yet.</td></tr>
                                 <?php else: ?>
                                     <?php foreach ($class_activities as $act): 
                                         $pending = max(0, count($class_students) - $act['submitted_count']);
                                         $avg = $act['avg_score'] !== null ? number_format($act['avg_score'], 1) : '-';
                                     ?>
                                     <tr>
-                                        <td><strong style="font-family: var(--font-head); font-size: 1rem; text-transform: uppercase;"><?php echo htmlspecialchars($act['title']); ?></strong></td>
-                                        <td style="font-family: var(--font-mono); font-size: 0.8rem; color: var(--text-tech);"><?php echo date('M d, Y', strtotime($act['due_date'])); ?></td>
-                                        <td style="text-align: center;"><strong style="color: #10b981; font-family: var(--font-mono); font-size: 1.1rem;"><?php echo $act['submitted_count']; ?></strong></td>
-                                        <td style="text-align: center;"><strong style="color: #ef4444; font-family: var(--font-mono); font-size: 1.1rem;"><?php echo $pending; ?></strong></td>
-                                        <td><strong style="font-family: var(--font-mono); font-size: 1.1rem;"><?php echo $avg; ?></strong> <span style="font-size: 0.75rem; color: var(--text-tech);">/ <?php echo $act['max_marks']; ?></span></td>
+                                        <td><strong style="font-size: 0.95rem; color: var(--text-main);"><?php echo htmlspecialchars($act['title']); ?></strong></td>
+                                        <td style="font-size: 0.85rem; color: var(--text-muted);"><?php echo date('M d, Y', strtotime($act['due_date'])); ?></td>
+                                        <td style="text-align: center;"><strong style="color: var(--success); font-size: 1rem;"><?php echo $act['submitted_count']; ?></strong></td>
+                                        <td style="text-align: center;"><strong style="color: var(--danger); font-size: 1rem;"><?php echo $pending; ?></strong></td>
+                                        <td><strong style="font-size: 1rem;"><?php echo $avg; ?></strong> <span style="font-size: 0.75rem; color: var(--text-muted);">/ <?php echo $act['max_marks']; ?></span></td>
                                     </tr>
                                     <?php endforeach; ?>
                                 <?php endif; ?>
                             </tbody>
                         </table>
                     </div>
+                </div>
+            </div>
+
         <!-- CUMULATIVE VIEW 1: ACADEMIC YEAR CARDS FOR DIRECT CLASS ACCESS -->
         <?php elseif ($view === 'cumulative'): ?>
             <div class="hero-banner" style="margin-bottom: 2rem;">
                 <div class="hero-content">
                     <div>
-                        <h1 style="font-family: var(--font-head); font-size: 2rem; margin-bottom: 0.5rem; font-weight: 700; text-transform: uppercase;">CUMULATIVE MARKSHEET REPORTS</h1>
-                        <p style="color: var(--text-tech); font-family: var(--font-mono); font-size: 0.85rem;">Select an academic year to inspect classes directly and generate master cumulative subject marksheets scaled out of 20.</p>
+                        <h1 class="hero-title">Cumulative Marksheet Reports</h1>
+                        <p class="hero-subtitle">Select an academic year to inspect classes directly and generate master cumulative subject marksheets scaled out of 20.</p>
                     </div>
                 </div>
             </div>
 
             <div style="display: grid; grid-template-columns: repeat(auto-fit, minmax(240px, 1fr)); gap: 1.5rem; margin-bottom: 2.5rem;">
                 <?php foreach ($year_stats as $y_code => $y_data): ?>
-                <div class="module-card interactive" style="padding: 2rem; display: flex; flex-direction: column; justify-content: space-between;">
+                <div class="module-card" style="display: flex; flex-direction: column; justify-content: space-between;">
                     <div>
                         <div style="display: flex; justify-content: space-between; align-items: center; margin-bottom: 1rem;">
-                            <span class="sys-tag accent" style="font-size: 0.9rem; font-weight: 800;"><?php echo $y_code; ?></span>
-                            <span style="font-family: var(--font-mono); font-size: 0.75rem; color: var(--text-tech); font-weight: 700;"><?php echo $y_data['class_count']; ?> Active Classes</span>
+                            <span class="sys-tag accent" style="font-size: 0.85rem;"><?php echo $y_code; ?></span>
+                            <span style="font-size: 0.8rem; color: var(--text-muted); font-weight: 600;"><?php echo $y_data['class_count']; ?> Active Classes</span>
                         </div>
-                        <h3 style="font-family: var(--font-head); font-size: 1.35rem; font-weight: 700; text-transform: uppercase; margin-bottom: 1rem; color: var(--text-dark);"><?php echo htmlspecialchars($y_data['name']); ?></h3>
+                        <h3 style="font-size: 1.25rem; font-weight: 700; margin-bottom: 1rem; color: var(--text-main);"><?php echo htmlspecialchars($y_data['name']); ?></h3>
                         
-                        <div style="font-family: var(--font-mono); font-size: 0.85rem; color: var(--text-tech); margin-bottom: 1.5rem; display: flex; flex-direction: column; gap: 0.4rem;">
+                        <div style="font-size: 0.85rem; color: var(--text-muted); margin-bottom: 1.5rem; display: flex; flex-direction: column; gap: 0.4rem;">
                             <div>Total Classes: <strong><?php echo $y_data['class_count']; ?></strong></div>
                             <div>Faculty Members: <strong><?php echo $y_data['faculty_count']; ?></strong></div>
                         </div>
                     </div>
 
-                    <a href="?view=cumulative_classes&year=<?php echo urlencode($y_code); ?>" class="btn btn-primary interactive" style="width: 100%; font-size: 0.8rem;">
+                    <a href="?view=cumulative_classes&year=<?php echo urlencode($y_code); ?>" class="btn btn-outline" style="width: 100%; font-size: 0.8rem;">
                         Select Class in Year &rarr;
                     </a>
                 </div>
@@ -1218,13 +1053,13 @@ if ($view === 'cumulative_report' && isset($_GET['cid'])) {
         <!-- CUMULATIVE VIEW 2: DIRECT CLASSES LIST IN SELECTED YEAR -->
         <?php elseif ($view === 'cumulative_classes'): ?>
             <div style="margin-bottom: 1.5rem;">
-                <a href="?view=cumulative" class="btn btn-outline interactive" style="margin-bottom: 1rem; font-size: 0.8rem;">
-                    &larr; Back to Year Selection
+                <a href="?view=cumulative" class="btn btn-outline" style="margin-bottom: 1rem; font-size: 0.8rem;">
+                    <i class="fa-solid fa-arrow-left"></i> Back to Year Selection
                 </a>
-                <h2 style="font-family: var(--font-head); font-size: 2rem; font-weight: 700; text-transform: uppercase;">
+                <h2 style="font-size: 1.8rem; font-weight: 700; color: var(--navy-primary); margin-bottom: 0.2rem;">
                     Cumulative Classes: <?php echo htmlspecialchars($years_list[$selected_year] ?? $selected_year); ?>
                 </h2>
-                <p style="font-family: var(--font-mono); font-size: 0.85rem; color: var(--text-tech);">Select any class below to open its cumulative subject-wise marksheet.</p>
+                <p style="font-size: 0.9rem; color: var(--text-muted); margin: 0;">Select any class below to open its cumulative subject-wise marksheet.</p>
             </div>
 
             <div class="module-card">
@@ -1242,17 +1077,17 @@ if ($view === 'cumulative_report' && isset($_GET['cid'])) {
                         </thead>
                         <tbody>
                             <?php if (empty($cum_year_classes)): ?>
-                                <tr><td colspan="6" style="text-align: center; color: var(--text-tech); padding: 3rem; font-family: var(--font-mono); font-weight: 700;">No classes created for this academic year yet.</td></tr>
+                                <tr><td colspan="6" style="text-align: center; color: var(--text-muted); padding: 3rem; font-weight: 500;">No classes created for this academic year yet.</td></tr>
                             <?php else: ?>
                                 <?php foreach ($cum_year_classes as $c_item): ?>
                                 <tr>
-                                    <td><strong style="font-family: var(--font-head); font-size: 1.05rem; text-transform: uppercase;"><?php echo htmlspecialchars($c_item['class_name']); ?></strong></td>
-                                    <td><strong style="font-family: var(--font-body); font-size: 0.95rem; text-transform: uppercase;"><?php echo htmlspecialchars($c_item['faculty_name']); ?></strong></td>
-                                    <td style="font-family: var(--font-mono); font-size: 0.85rem; color: var(--text-tech);"><?php echo htmlspecialchars($c_item['faculty_email']); ?></td>
-                                    <td><span style="font-family: var(--font-mono); font-weight: 700; color: var(--accent-main);"><?php echo htmlspecialchars($c_item['subject_code'] ?: 'General'); ?></span></td>
-                                    <td style="font-family: var(--font-mono); font-weight: 700; color: var(--text-tech);"><?php echo $c_item['student_count']; ?> Students</td>
+                                    <td><strong style="font-size: 1rem; color: var(--text-main);"><?php echo htmlspecialchars($c_item['class_name']); ?></strong></td>
+                                    <td><strong style="font-size: 0.9rem; color: var(--text-main);"><?php echo htmlspecialchars($c_item['faculty_name']); ?></strong></td>
+                                    <td style="font-size: 0.85rem; color: var(--text-muted);"><?php echo htmlspecialchars($c_item['faculty_email']); ?></td>
+                                    <td><span style="font-weight: 600; font-size: 0.85rem; color: var(--blue-accent);"><?php echo htmlspecialchars($c_item['subject_code'] ?: 'General'); ?></span></td>
+                                    <td style="font-weight: 600; font-size: 0.85rem; color: var(--text-muted);"><?php echo $c_item['student_count']; ?> Students</td>
                                     <td style="text-align: right;">
-                                        <a href="?view=cumulative_report&cid=<?php echo $c_item['class_id']; ?>" class="btn btn-primary interactive" style="font-size: 0.75rem; padding: 0.4rem 0.8rem;">
+                                        <a href="?view=cumulative_report&cid=<?php echo $c_item['class_id']; ?>" class="btn btn-primary" style="font-size: 0.8rem; padding: 0.4rem 0.8rem;">
                                             Cumulative Report &rarr;
                                         </a>
                                     </td>
@@ -1268,33 +1103,33 @@ if ($view === 'cumulative_report' && isset($_GET['cid'])) {
         <?php elseif ($view === 'cumulative_report' && $cum_class_info): ?>
             <div style="display: flex; justify-content: space-between; align-items: flex-start; flex-wrap: wrap; gap: 1rem; margin-bottom: 2rem;">
                 <div>
-                    <a href="?view=cumulative_classes&year=<?php echo urlencode($cum_class_info['academic_year']); ?>" class="btn btn-outline interactive" style="margin-bottom: 1rem; font-size: 0.8rem;">
-                        &larr; Back to Classes
+                    <a href="?view=cumulative_classes&year=<?php echo urlencode($cum_class_info['academic_year']); ?>" class="btn btn-outline" style="margin-bottom: 1rem; font-size: 0.8rem;">
+                        <i class="fa-solid fa-arrow-left"></i> Back to Classes
                     </a>
-                    <h2 style="font-family: var(--font-head); font-size: 2rem; font-weight: 700; text-transform: uppercase;">
+                    <h2 style="font-size: 1.8rem; font-weight: 700; color: var(--navy-primary); margin-bottom: 0.2rem;">
                         Cumulative Marksheet: <?php echo htmlspecialchars($cum_class_info['class_name']); ?>
                     </h2>
-                    <p style="font-family: var(--font-mono); font-size: 0.85rem; color: var(--text-tech);">
+                    <p style="font-size: 0.9rem; color: var(--text-muted); margin: 0;">
                         Faculty: <strong><?php echo htmlspecialchars($cum_class_info['faculty_name']); ?></strong> | 
                         Year: <span class="sys-tag"><?php echo htmlspecialchars($cum_class_info['academic_year'] ?? 'FY'); ?></span> | 
-                        Subject: <strong style="color: var(--accent-main);"><?php echo htmlspecialchars($cum_class_info['subject_code'] ?: 'General'); ?></strong>
+                        Subject: <strong style="color: var(--blue-accent);"><?php echo htmlspecialchars($cum_class_info['subject_code'] ?: 'General'); ?></strong>
                     </p>
                 </div>
                 <div style="display: flex; gap: 0.5rem;">
-                    <button class="btn btn-outline interactive" onclick="exportPDF()">Export PDF</button>
-                    <button class="btn btn-primary interactive" onclick="exportExcel()">Export Excel</button>
+                    <button class="btn btn-outline" onclick="exportPDF()"><i class="fa-solid fa-file-pdf text-danger me-1"></i> Export PDF</button>
+                    <button class="btn btn-primary" onclick="exportExcel()"><i class="fa-solid fa-file-excel me-1"></i> Export Excel</button>
                 </div>
             </div>
 
             <div id="exportTable">
                 <!-- STATS SUMMARY -->
-                <div class="stats-grid interactive" style="margin-bottom: 2rem;">
+                <div class="stats-grid" style="margin-bottom: 2rem;">
                     <div class="stat-block">
                         <div class="stat-val"><?php echo count($cum_class_students); ?></div>
                         <div class="stat-label">Enrolled Students</div>
                     </div>
                     <div class="stat-block">
-                        <div class="stat-val" style="color: #3b82f6;"><?php echo count($cum_distinct_subjects); ?></div>
+                        <div class="stat-val" style="color: var(--blue-accent);"><?php echo count($cum_distinct_subjects); ?></div>
                         <div class="stat-label">Subject Columns</div>
                     </div>
                     <div class="stat-block">
@@ -1305,17 +1140,17 @@ if ($view === 'cumulative_report' && isset($_GET['cid'])) {
                                 $cum_overall_avg = round($sum_overall / count($cum_class_students), 2);
                             }
                         ?>
-                        <div class="stat-val" style="color: var(--accent-main);"><?php echo $cum_overall_avg; ?> <span style="font-size: 1rem; color: var(--text-tech);">/ 20</span></div>
+                        <div class="stat-val" style="color: var(--navy-primary);"><?php echo $cum_overall_avg; ?> <span style="font-size: 1rem; color: var(--text-muted);">/ 20</span></div>
                         <div class="stat-label">Master Scaled Avg (/20)</div>
                     </div>
                 </div>
 
                 <!-- CUMULATIVE MASTER TABLE -->
                 <div class="module-card">
-                    <div style="display: flex; justify-content: space-between; align-items: center; margin-bottom: 1.5rem;">
+                    <div style="display: flex; justify-content: space-between; align-items: center; margin-bottom: 1.5rem; flex-wrap: wrap; gap: 1rem;">
                         <div>
-                            <h3 style="font-family: var(--font-head); font-size: 1.4rem; font-weight: 700; text-transform: uppercase;">Master Cumulative Sheet (Subject-Wise Marks Scaled to 20)</h3>
-                            <p style="font-family: var(--font-mono); font-size: 0.8rem; color: var(--text-tech);">
+                            <h3 style="font-size: 1.25rem; font-weight: 700; color: var(--navy-primary); margin-bottom: 0.2rem;">Master Cumulative Sheet (Subject-Wise Marks Scaled to 20)</h3>
+                            <p style="font-size: 0.85rem; color: var(--text-muted); margin: 0;">
                                 Shows every student's average marks per subject converted to a scale of 20.
                             </p>
                         </div>
@@ -1330,38 +1165,38 @@ if ($view === 'cumulative_report' && isset($_GET['cid'])) {
                                     <th>Student Name</th>
                                     <th>Roll No</th>
                                     <?php foreach ($cum_distinct_subjects as $s_name): ?>
-                                        <th style="text-align: center; color: var(--accent-main);"><?php echo htmlspecialchars($s_name); ?> (/20)</th>
+                                        <th style="text-align: center; color: var(--blue-accent);"><?php echo htmlspecialchars($s_name); ?> (/20)</th>
                                     <?php endforeach; ?>
-                                    <th style="text-align: center; color: #10b981;">Overall (/20)</th>
+                                    <th style="text-align: center; color: var(--success);">Overall (/20)</th>
                                     <th style="text-align: right;">Percentage</th>
                                 </tr>
                             </thead>
                             <tbody>
                                 <?php if (empty($cum_class_students)): ?>
-                                    <tr><td colspan="<?php echo (4 + count($cum_distinct_subjects) + 1); ?>" style="text-align: center; color: var(--text-tech); padding: 3rem; font-family: var(--font-mono); font-weight: 700;">No students enrolled in this class yet.</td></tr>
+                                    <tr><td colspan="<?php echo (4 + count($cum_distinct_subjects) + 1); ?>" style="text-align: center; color: var(--text-muted); padding: 3rem; font-weight: 500;">No students enrolled in this class yet.</td></tr>
                                 <?php else: ?>
                                     <?php foreach ($cum_class_students as $st): ?>
                                     <tr>
-                                        <td style="font-family: var(--font-mono); font-weight: 700; color: var(--accent-main);"><?php echo htmlspecialchars($st['student_prn']); ?></td>
-                                        <td><strong style="font-family: var(--font-body); font-weight: 600; text-transform: uppercase;"><?php echo htmlspecialchars($st['student_name'] ?: 'Registered Student'); ?></strong></td>
-                                        <td style="font-family: var(--font-mono); font-weight: 700;"><?php echo htmlspecialchars($st['roll_no'] ?: '-'); ?></td>
+                                        <td style="font-weight: 600; color: var(--navy-primary);"><?php echo htmlspecialchars($st['student_prn']); ?></td>
+                                        <td><strong style="font-weight: 500; font-size: 0.95rem; color: var(--text-main);"><?php echo htmlspecialchars($st['student_name'] ?: 'Registered Student'); ?></strong></td>
+                                        <td style="font-weight: 600;"><?php echo htmlspecialchars($st['roll_no'] ?: '-'); ?></td>
                                         
                                         <?php foreach ($cum_distinct_subjects as $s_name): 
                                             $s_score = $st['subject_scores_20'][$s_name] ?? 0;
                                         ?>
-                                            <td style="text-align: center; font-family: var(--font-mono); font-weight: 700;">
-                                                <span class="sys-tag" style="background: rgba(124, 58, 237, 0.08); color: var(--accent-main); border-color: var(--accent-main);">
+                                            <td style="text-align: center; font-weight: 600;">
+                                                <span class="sys-tag" style="background: rgba(37, 99, 235, 0.08); color: var(--blue-accent); font-size: 0.85rem;">
                                                     <?php echo number_format($s_score, 2); ?> / 20
                                                 </span>
                                             </td>
                                         <?php endforeach; ?>
 
-                                        <td style="text-align: center; font-family: var(--font-mono); font-weight: 800;">
+                                        <td style="text-align: center; font-weight: 700;">
                                             <span class="sys-tag accent" style="font-size: 0.95rem; padding: 0.3rem 0.6rem;">
                                                 <?php echo number_format($st['overall_score_20'], 2); ?> / 20
                                             </span>
                                         </td>
-                                        <td style="text-align: right; font-family: var(--font-mono); font-weight: 700; color: #10b981;">
+                                        <td style="text-align: right; font-weight: 600; color: var(--success);">
                                             <?php echo number_format($st['overall_percentage'], 2); ?>%
                                         </td>
                                     </tr>
@@ -1375,26 +1210,26 @@ if ($view === 'cumulative_report' && isset($_GET['cid'])) {
         
         <!-- VIEW 5: PROFILE SECTION -->
         <?php elseif ($view === 'profile'): ?>
-            <div class="page-header" style="margin-bottom: 1.5rem;">
-                <h1 style="font-family: var(--font-head); font-size: 2rem; font-weight: 700; text-transform: uppercase;">My Profile</h1>
-                <p style="font-family: var(--font-mono); font-size: 0.85rem; color: var(--text-tech);">View professional information.</p>
+            <div style="margin-bottom: 1.5rem;">
+                <h1 style="font-size: 1.8rem; font-weight: 700; color: var(--navy-primary); margin-bottom: 0.2rem;">My Profile</h1>
+                <p style="font-size: 0.9rem; color: var(--text-muted); margin: 0;">View professional information.</p>
             </div>
             
             <div class="module-card" style="max-width: 800px; padding: 3rem;">
                 <div style="display:flex; gap: 2rem; align-items:flex-start; flex-wrap: wrap;">
                     <div style="flex-shrink:0;">
-                        <div style="width:120px; height:120px; border: 2px solid var(--text-dark); background-color:var(--bg-base); display:flex; align-items:center; justify-content:center; font-size:4rem; color: var(--accent-main);">
+                        <div style="width:120px; height:120px; border-radius: 50%; background-color:#f1f5f9; display:flex; align-items:center; justify-content:center; font-size:4rem; color: var(--navy-primary);">
                             <i class="fa-solid fa-user"></i>
                         </div>
                     </div>
                     <div style="flex:1;">
-                        <h2 style="font-size:2rem; margin-bottom:0.2rem; color:var(--text-dark); font-family: var(--font-head); font-weight: 700; text-transform: uppercase;"><?= htmlspecialchars($hod_name) ?></h2>
-                        <p style="color:var(--text-tech); font-size:1rem; margin-bottom:1.5rem; font-weight:600; font-family: var(--font-mono); text-transform: uppercase;">Head of Department</p>
+                        <h2 style="font-size:1.8rem; font-weight: 700; color:var(--text-main); margin-bottom: 0.2rem;"><?= htmlspecialchars($hod_name) ?></h2>
+                        <p style="color:var(--text-muted); font-size:1rem; font-weight:500; margin-bottom: 1.5rem;">Head of Department</p>
                         
-                        <div style="display:grid; grid-template-columns:1fr 1fr; gap:1.5rem; border-top: 2px solid var(--text-dark); padding-top: 1.5rem;">
+                        <div style="display:grid; grid-template-columns:1fr 1fr; gap:1.5rem; border-top: 1px solid var(--border-color); padding-top: 1.5rem;">
                             <div>
-                                <strong style="display:block; margin-bottom:0.25rem; font-size:0.85rem; color:var(--text-tech); font-family: var(--font-mono); text-transform:uppercase;">Account Role</strong>
-                                <span class="sys-tag accent"><?= strtoupper($role) ?></span>
+                                <strong style="display:block; margin-bottom:0.25rem; font-size:0.85rem; color:var(--text-muted); text-transform: uppercase; letter-spacing: 0.05em;">Account Role</strong>
+                                <span class="sys-tag accent" style="font-size: 0.85rem;"><?= strtoupper($role) ?></span>
                             </div>
                         </div>
                     </div>
@@ -1408,19 +1243,7 @@ if ($view === 'cumulative_report' && isset($_GET['cid'])) {
 
 <script>
 document.addEventListener("DOMContentLoaded", () => {
-    // 1. Cursor Hover interactions
-    const attachCursorHover = () => {
-        document.querySelectorAll('.interactive, button, a, input, select, textarea').forEach(el => {
-            el.addEventListener("mouseenter", () => document.body.classList.add("hovering"));
-            el.addEventListener("mouseleave", () => document.body.classList.remove("hovering"));
-        });
-    };
-    attachCursorHover();
-    
-    const observer = new MutationObserver(attachCursorHover);
-    observer.observe(document.body, { childList: true, subtree: true });
-
-    // 2. Sidebar Toggle (Mobile)
+    // 1. Sidebar Toggle (Mobile)
     const sidebarToggle = document.getElementById('sidebarToggle');
     const erpSidebar = document.getElementById('erpSidebar');
 
@@ -1430,7 +1253,7 @@ document.addEventListener("DOMContentLoaded", () => {
       });
     }
 
-    // 3. Live Clock
+    // 2. Live Clock
     const clockEl = document.getElementById('clock');
     if (clockEl) {
         function updateClock() {
