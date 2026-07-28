@@ -60,14 +60,7 @@ if ($_SERVER["REQUEST_METHOD"] === "POST") {
 
     if (!empty($full_name) && !empty($prn_number) && !empty($email) && !empty($department) && !empty($academic_year) && !empty($division) && !empty($parent_name) && !empty($parent_email)) {
         
-        $allowedDomains = ['zeal.in', 'zcoer.edu.in'];
-        $emailParts = explode('@', $email);
-        $domain = end($emailParts);
-
-        if (!in_array($domain, $allowedDomains)) {
-            $error = "Access denied: Student email must be a valid @zeal.in or @zcoer.edu.in address.";
-        } else {
-            // 1. Check if PRN or Student Email already active in users table
+        // 1. Check if PRN or Student Email already active in users table
             $checkUserPrn = $conn->prepare("SELECT user_id FROM users WHERE username = ?");
             $checkUserPrn->bind_param("s", $prn_number);
             $checkUserPrn->execute();
@@ -140,7 +133,6 @@ if ($_SERVER["REQUEST_METHOD"] === "POST") {
                     }
                 }
             }
-        }
     } else {
         $error = "Please fill in all mandatory student and parent parameters.";
     }
@@ -152,243 +144,208 @@ if ($_SERVER["REQUEST_METHOD"] === "POST") {
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>Register | SAAES</title>
+    <title>Request Access | SAAES</title>
     
     <link href="https://cdn.jsdelivr.net/npm/bootstrap@5.3.0/dist/css/bootstrap.min.css" rel="stylesheet">
     <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.4.0/css/all.min.css">
     
-    <!-- Professional Fonts -->
-    <link href="https://fonts.googleapis.com/css2?family=Space+Grotesk:wght@400;600;700&family=JetBrains+Mono:wght@100;400;700;800&family=Inter:wght@400;500;600&display=swap" rel="stylesheet">
+    <!-- Clean Academic Fonts -->
+    <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700&display=swap" rel="stylesheet">
 
     <style>
         :root {
-            /* Minimal Sci-Fi White & Purple Palette */
-            --bg-base: #ffffff;
-            --text-dark: #0f172a; 
-            --text-tech: #475569; 
-            --text-light: #94a3b8;
+            /* Traditional Academic Color Palette */
+            --bg-body: #f8fafc;
+            --bg-card: #ffffff;
+            --navy-primary: #0f172a;
+            --blue-accent: #2563eb;
+            --text-main: #1e293b;
+            --text-muted: #64748b;
+            --border-color: #e2e8f0;
             
-            --accent-main: #7c3aed; /* Vibrant Purple */
-            --accent-glow: #a855f7; 
+            --radius-md: 8px;
+            --radius-lg: 12px;
+            --shadow-md: 0 4px 6px -1px rgba(0,0,0,0.1), 0 2px 4px -1px rgba(0,0,0,0.06);
             
-            --grid-size: 40px;
-            --border-harsh: 2px solid var(--text-dark);
-            
-            --font-head: 'Space Grotesk', sans-serif;
-            --font-mono: 'JetBrains Mono', monospace;
-            --font-body: 'Inter', sans-serif;
+            --font-main: 'Inter', system-ui, -apple-system, sans-serif;
         }
 
         * { margin: 0; padding: 0; box-sizing: border-box; }
 
         body {
-            background-color: var(--bg-base);
-            /* Architectural Blueprint Grid (Static Layer) */
-            background-image: 
-                linear-gradient(rgba(124, 58, 237, 0.08) 1px, transparent 1px),
-                linear-gradient(90deg, rgba(124, 58, 237, 0.08) 1px, transparent 1px);
-            background-size: var(--grid-size) var(--grid-size);
-            background-position: center center;
-            color: var(--text-dark);
-            font-family: var(--font-body);
+            background-color: var(--bg-body);
+            color: var(--text-main);
+            font-family: var(--font-main);
             min-height: 100vh;
             display: flex;
             align-items: center;
             justify-content: center;
             padding: 40px 20px;
-            position: relative;
-            overflow-x: hidden;
-            
-            /* PIXELATED PURPLE CUSTOM CURSOR */
-            cursor: url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' width='32' height='32' viewBox='0 0 32 32' shape-rendering='crispEdges'%3E%3Cpath d='M4 4v20l5-5 4 8 4-2-4-8h8L4 4z' fill='%237c3aed' stroke='white' stroke-width='2'/%3E%3C/svg%3E") 4 4, auto;
             -webkit-font-smoothing: antialiased;
         }
 
-        /* PIXELATED HOVER CURSOR */
-        a, button, input, select, .interactive {
-            cursor: url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' width='32' height='32' viewBox='0 0 32 32' shape-rendering='crispEdges'%3E%3Cpath d='M4 4v20l5-5 4 8 4-2-4-8h8L4 4z' fill='%23a855f7' stroke='%230f172a' stroke-width='2.5'/%3E%3C/svg%3E") 4 4, pointer !important;
-        }
-
-        ::selection { background: var(--accent-main); color: #fff; }
         a { text-decoration: none; color: inherit; }
-
-        /* ================= 3D PLEXUS CANVAS LAYER ================= */
-        #bg-canvas {
-            position: fixed;
-            top: 0;
-            left: 0;
-            width: 100vw;
-            height: 100vh;
-            z-index: 0;
-            pointer-events: none;
-        }
 
         /* ================= REGISTRATION CARD ================= */
         .request-card {
-            background: rgba(255, 255, 255, 0.95);
-            border: var(--border-harsh);
+            background: var(--bg-card);
+            border: 1px solid var(--border-color);
             width: 100%;
-            max-width: 650px;
-            z-index: 5;
+            max-width: 700px;
+            border-radius: var(--radius-lg);
             padding: 3rem;
-            position: relative;
-            backdrop-filter: blur(15px);
-            -webkit-backdrop-filter: blur(15px);
-            box-shadow: 20px 20px 0px rgba(124, 58, 237, 0.15);
-            clip-path: polygon(0 0, calc(100% - 30px) 0, 100% 30px, 100% 100%, 30px 100%, 0 calc(100% - 30px));
-            animation: fadeUp 0.8s cubic-bezier(0.16, 1, 0.3, 1) forwards;
-        }
-        .request-card::before {
-            content: ''; position: absolute; top: 0; left: 0; width: 40px; height: 40px;
-            border-right: 2px solid var(--text-dark); border-bottom: 2px solid var(--text-dark);
+            box-shadow: var(--shadow-md);
         }
 
-        @keyframes fadeUp {
-            from { opacity: 0; transform: translateY(30px); }
-            to { opacity: 1; transform: translateY(0); }
+        .card-header {
+            text-align: center;
+            margin-bottom: 2rem;
         }
 
-        .sys-tag {
-            font-family: var(--font-mono);
-            font-size: 0.75rem;
-            font-weight: 700;
-            text-transform: uppercase;
-            letter-spacing: 0.15em;
-            color: var(--accent-main);
-            margin-bottom: 0.75rem;
+        .sys-icon {
             display: inline-flex;
             align-items: center;
-            gap: 0.5rem;
-            background: rgba(124, 58, 237, 0.08);
-            padding: 0.3rem 0.8rem;
-            border: 1px solid rgba(124, 58, 237, 0.2);
+            justify-content: center;
+            width: 56px;
+            height: 56px;
+            background: #eff6ff;
+            color: var(--blue-accent);
+            border-radius: 50%;
+            font-size: 1.5rem;
+            margin-bottom: 1rem;
         }
 
         .card-title {
-            font-family: var(--font-head);
-            font-size: 2.2rem;
+            font-size: 1.75rem;
             font-weight: 700;
-            color: var(--text-dark);
-            text-transform: uppercase;
-            letter-spacing: -0.02em;
+            color: var(--navy-primary);
             margin-bottom: 0.5rem;
-            line-height: 1.1;
         }
 
         .card-subtitle {
-            font-family: var(--font-body);
-            color: var(--text-tech);
-            font-size: 0.9rem;
+            color: var(--text-muted);
+            font-size: 0.95rem;
             line-height: 1.5;
-            margin-bottom: 2.5rem;
-            border-left: 2px solid var(--accent-main);
-            padding-left: 1rem;
         }
 
         /* ================= FORM ELEMENTS ================= */
         .section-divider {
-            font-family: var(--font-mono);
-            font-size: 0.95rem;
-            font-weight: 700;
-            color: var(--text-dark);
-            border-bottom: 2px solid var(--text-dark);
+            font-size: 1rem;
+            font-weight: 600;
+            color: var(--navy-primary);
+            border-bottom: 2px solid var(--border-color);
             padding-bottom: 8px;
             margin-bottom: 20px;
             display: flex;
             align-items: center;
             gap: 8px;
-            text-transform: uppercase;
         }
-        .section-divider i { color: var(--accent-main); }
+        .section-divider i { color: var(--blue-accent); }
 
         .form-group { margin-bottom: 1.25rem; }
         
-        .custom-label {
-            font-family: var(--font-mono);
-            font-size: 0.8rem;
-            font-weight: 700;
-            text-transform: uppercase;
-            color: var(--text-dark);
-            margin-bottom: 6px;
+        .form-label {
+            font-size: 0.85rem;
+            font-weight: 600;
+            color: var(--text-main);
+            margin-bottom: 0.4rem;
             display: block;
         }
 
         .form-control-custom, .form-select-custom {
-            background-color: var(--bg-base);
-            border: 1px solid var(--text-tech);
-            color: var(--text-dark);
-            padding: 12px 16px;
-            font-family: var(--font-body);
+            background-color: var(--bg-body);
+            border: 1px solid var(--border-color);
+            color: var(--text-main);
+            padding: 0.75rem 1rem;
+            font-family: var(--font-main);
             font-size: 0.95rem;
             width: 100%;
-            transition: all 0.3s ease;
-            border-radius: 0;
+            transition: all 0.2s ease;
+            border-radius: var(--radius-md);
             -webkit-appearance: none;
         }
         
-        .form-control-custom:focus, .form-select-custom:focus {
-            border-color: var(--accent-main);
-            border-width: 2px;
-            outline: none;
-            padding: 11px 15px; /* Offset border width */
+        .form-select-custom {
+            background-image: url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' width='16' height='16' viewBox='0 0 24 24' fill='none' stroke='%2364748b' stroke-width='2' stroke-linecap='round' stroke-linejoin='round'%3E%3Cpolyline points='6 9 12 15 18 9'%3E%3C/polyline%3E%3C/svg%3E");
+            background-repeat: no-repeat;
+            background-position: right 1rem center;
+            background-size: 1em;
+            padding-right: 2.5rem;
         }
-        .form-control-custom::placeholder { color: var(--text-light); font-family: var(--font-mono); font-size: 0.85rem; }
+        
+        .form-control-custom:focus, .form-select-custom:focus {
+            border-color: var(--blue-accent);
+            background-color: var(--bg-card);
+            outline: none;
+            box-shadow: 0 0 0 3px rgba(37, 99, 235, 0.1);
+        }
+        .form-control-custom::placeholder { color: #94a3b8; font-size: 0.9rem; }
 
         /* ================= BUTTON ================= */
-        .btn-tech {
-            font-family: var(--font-mono); font-weight: 700; font-size: 1rem; text-transform: uppercase;
-            padding: 1.2rem; display: inline-flex; align-items: center; justify-content: center; gap: 0.75rem;
-            background: var(--text-dark); color: #fff; border: 2px solid var(--text-dark);
-            position: relative; overflow: hidden; z-index: 1;
-            clip-path: polygon(15px 0, 100% 0, 100% calc(100% - 15px), calc(100% - 15px) 100%, 0 100%, 0 15px);
-            transition: color 0.3s; width: 100%; margin-top: 1rem;
+        .btn-primary {
+            font-family: var(--font-main);
+            font-weight: 600;
+            font-size: 1rem;
+            padding: 0.85rem 1.5rem;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            gap: 0.5rem;
+            background: var(--blue-accent);
+            color: #fff;
+            border: none;
+            border-radius: var(--radius-md);
+            width: 100%;
+            cursor: pointer;
+            transition: background 0.2s ease, transform 0.1s ease;
+            margin-top: 2rem;
         }
-        .btn-tech::before {
-            content: ''; position: absolute; top: 0; left: -100%; width: 100%; height: 100%;
-            background: var(--accent-main); z-index: -1; transition: left 0.3s cubic-bezier(0.7, 0, 0.3, 1);
+
+        .btn-primary:hover {
+            background: #1d4ed8;
         }
-        .btn-tech:hover { color: #fff; border-color: var(--accent-main); }
-        .btn-tech:hover::before { left: 0; }
-        .btn-tech i { transition: transform 0.3s; }
-        .btn-tech:hover i { transform: translateX(5px); }
+
+        .btn-primary:active {
+            transform: scale(0.98);
+        }
 
         .login-link {
             display: block;
             text-align: center;
             margin-top: 1.5rem;
-            font-family: var(--font-mono);
-            font-size: 0.85rem;
-            color: var(--text-tech);
-            transition: color 0.3s ease;
-            text-transform: uppercase;
+            font-size: 0.9rem;
+            color: var(--text-muted);
+            transition: color 0.2s ease;
         }
-        .login-link strong { color: var(--accent-main); font-weight: 700; border-bottom: 1px solid var(--accent-main);}
-        .login-link:hover strong { color: var(--text-dark); border-color: var(--text-dark); }
+        .login-link strong { color: var(--blue-accent); font-weight: 600; }
+        .login-link:hover strong { text-decoration: underline; }
 
-        /* Alerts styling */
+        /* ================= ALERTS ================= */
         .alert { 
-            font-family: var(--font-mono); font-size: 0.85rem; font-weight: 700; text-transform: uppercase; 
-            border: 2px solid transparent; border-radius: 0; padding: 1rem 1.2rem; margin-bottom: 2rem; 
-            display: flex; align-items: center; gap: 0.75rem;
+            font-size: 0.9rem; 
+            font-weight: 500; 
+            border-radius: var(--radius-md); 
+            padding: 1rem 1.25rem; 
+            margin-bottom: 2rem; 
+            display: flex; 
+            align-items: center; 
+            gap: 0.75rem;
         }
-        .alert-danger { background: rgba(239, 68, 68, 0.05); color: #ef4444; border-color: #ef4444; }
-        .alert-success { background: rgba(16, 185, 129, 0.05); color: #10b981; border-color: #10b981; }
+        .alert-danger { background: #fee2e2; color: #991b1b; border: 1px solid #fecaca; }
+        .alert-success { background: #dcfce7; color: #166534; border: 1px solid #bbf7d0; }
 
-        @media (max-width: 768px) {
-            .request-card { padding: 2rem; clip-path: none; box-shadow: 8px 8px 0px rgba(124, 58, 237, 0.15); border-radius: 0;}
-            .card-title { font-size: 1.8rem; }
+        @media (max-width: 600px) {
+            .request-card { padding: 2rem 1.5rem; }
+            .card-title { font-size: 1.5rem; }
         }
     </style>
 </head>
 <body>
 
-    <!-- INTERACTIVE 3D PLEXUS MATRIX BACKGROUND -->
-    <canvas id="bg-canvas"></canvas>
-
     <div class="request-card">
-        <div class="mb-4">
-            <div class="sys-tag"><i class="fa-solid fa-user-plus"></i> Registration</div>
-            <h3 class="card-title">Access Request</h3>
+        <div class="card-header">
+            <div class="sys-icon"><i class="fa-solid fa-user-plus"></i></div>
+            <h3 class="card-title">Registration</h3>
             <p class="card-subtitle">Submit your details to request student and parent accounts.</p>
         </div>
 
@@ -406,12 +363,12 @@ if ($_SERVER["REQUEST_METHOD"] === "POST") {
             
             <div class="row">
                 <div class="col-md-6 form-group">
-                    <label class="custom-label">PRN Number *</label>
-                    <input type="text" name="prn_number" class="form-control-custom interactive" placeholder="e.g. 72210982B" required autocomplete="off">
+                    <label class="form-label">PRN Number <span style="color: #ef4444;">*</span></label>
+                    <input type="text" name="prn_number" class="form-control-custom" placeholder="e.g. 72210982B" required autocomplete="off">
                 </div>
                 <div class="col-md-6 form-group">
-                    <label class="custom-label">Department *</label>
-                    <select name="department" class="form-select-custom interactive" required>
+                    <label class="form-label">Department <span style="color: #ef4444;">*</span></label>
+                    <select name="department" class="form-select-custom" required>
                         <option value="" disabled selected>-- Select Dept --</option>
                         <option value="AI and Machine Learning">AI and Machine Learning</option>
                         <option value="AI and Data Science">AI and Data Science</option>
@@ -428,8 +385,8 @@ if ($_SERVER["REQUEST_METHOD"] === "POST") {
 
             <div class="row">
                 <div class="col-md-6 form-group">
-                    <label class="custom-label">Academic Year *</label>
-                    <select name="academic_year" class="form-select-custom interactive" required>
+                    <label class="form-label">Academic Year <span style="color: #ef4444;">*</span></label>
+                    <select name="academic_year" class="form-select-custom" required>
                         <option value="" disabled selected>-- Select Year --</option>
                         <option value="FY">First Year (FY)</option>
                         <option value="SY">Second Year (SY)</option>
@@ -438,8 +395,8 @@ if ($_SERVER["REQUEST_METHOD"] === "POST") {
                     </select>
                 </div>
                 <div class="col-md-6 form-group">
-                    <label class="custom-label">Class / Division *</label>
-                    <select name="division" class="form-select-custom interactive" required>
+                    <label class="form-label">Class / Division <span style="color: #ef4444;">*</span></label>
+                    <select name="division" class="form-select-custom" required>
                         <option value="" disabled selected>-- Select Div --</option>
                         <option value="A">Division A</option>
                         <option value="B">Division B</option>
@@ -450,171 +407,36 @@ if ($_SERVER["REQUEST_METHOD"] === "POST") {
             </div>
 
             <div class="form-group">
-                <label class="custom-label">Student Full Name *</label>
-                <input type="text" name="full_name" class="form-control-custom interactive" placeholder="As per official records" required autocomplete="off">
+                <label class="form-label">Student Full Name <span style="color: #ef4444;">*</span></label>
+                <input type="text" name="full_name" class="form-control-custom" placeholder="As per official records" required autocomplete="off">
             </div>
 
             <div class="form-group">
-                <label class="custom-label">College Email Address *</label>
-                <input type="email" name="email" class="form-control-custom interactive" placeholder="student@zeal.in" required autocomplete="off">
+                <label class="form-label">Student Email <span style="color: #ef4444;">*</span></label>
+                <input type="email" name="email" class="form-control-custom" placeholder="student@gmail.com" required autocomplete="off">
             </div>
 
-            <div class="section-divider mt-5"><i class="fa-solid fa-user-shield"></i> Parent / Guardian Details</div>
+            <div class="section-divider mt-4"><i class="fa-solid fa-user-shield"></i> Parent / Guardian Details</div>
 
             <div class="form-group">
-                <label class="custom-label">Parent / Guardian Name *</label>
-                <input type="text" name="parent_name" class="form-control-custom interactive" placeholder="e.g. Robert Doe" required autocomplete="off">
+                <label class="form-label">Parent / Guardian Name <span style="color: #ef4444;">*</span></label>
+                <input type="text" name="parent_name" class="form-control-custom" placeholder="e.g. Robert Doe" required autocomplete="off">
             </div>
 
             <div class="form-group">
-                <label class="custom-label">Parent Email Address *</label>
-                <input type="email" name="parent_email" class="form-control-custom interactive" placeholder="parent@domain.com" required autocomplete="off">
+                <label class="form-label">Parent Email Address <span style="color: #ef4444;">*</span></label>
+                <input type="email" name="parent_email" class="form-control-custom" placeholder="parent@domain.com" required autocomplete="off">
             </div>
 
-            <button type="submit" class="btn-tech interactive">
+            <button type="submit" class="btn-primary">
                 Submit Request <i class="fa-solid fa-arrow-right"></i>
             </button>
 
-            <a href="login.php" class="login-link interactive">
+            <a href="login.php" class="login-link">
                 Already have an account? <strong>Login here</strong>
             </a>
         </form>
     </div>
 
-    <!-- VANILLA JS FOR PREMIUM INTERACTIONS & 3D CANVAS -->
-    <script>
-    document.addEventListener("DOMContentLoaded", () => {
-        
-        let mouseX = window.innerWidth / 2;
-        let mouseY = window.innerHeight / 2;
-
-        // Hover interaction for custom cursor
-        if (window.matchMedia("(pointer: fine)").matches) {
-            window.addEventListener("mousemove", (e) => {
-                mouseX = e.clientX; mouseY = e.clientY;
-            });
-
-            document.querySelectorAll('.interactive, input, select, button, a').forEach(el => {
-                el.addEventListener("mouseenter", () => document.body.classList.add("hovering"));
-                el.addEventListener("mouseleave", () => document.body.classList.remove("hovering"));
-            });
-        }
-
-        // ==========================================
-        // 3D INTERACTIVE PLEXUS MATRIX BACKGROUND
-        // ==========================================
-        const canvas = document.getElementById('bg-canvas');
-        const ctx = canvas.getContext('2d');
-        let width, height;
-        let particles = [];
-
-        function resize() {
-            width = canvas.width = window.innerWidth;
-            height = canvas.height = window.innerHeight;
-        }
-        window.addEventListener('resize', resize);
-        resize();
-
-        class Particle {
-            constructor() {
-                // Spread particles slightly beyond the screen
-                this.x = (Math.random() - 0.5) * (width * 1.5);
-                this.y = (Math.random() - 0.5) * (height * 1.5);
-                // Simulated Z depth for parallax
-                this.z = Math.random() * 2;
-                
-                // Drift velocity
-                this.vx = (Math.random() - 0.5) * 0.6;
-                this.vy = (Math.random() - 0.5) * 0.6;
-                this.baseSize = Math.random() * 2 + 1;
-            }
-
-            update(mx, my) {
-                this.x += this.vx;
-                this.y += this.vy;
-
-                // Gentle screen wrap
-                if (this.x < -width) this.x = width;
-                if (this.x > width) this.x = -width;
-                if (this.y < -height) this.y = height;
-                if (this.y > height) this.y = -height;
-
-                // Mouse Repulsion & Parallax Math
-                const dx = mx - (this.x + width/2);
-                const dy = my - (this.y + height/2);
-                const dist = Math.sqrt(dx * dx + dy * dy);
-
-                // Nodes further back (higher Z) move less
-                this.projX = this.x + width/2 + (dx * this.z * 0.05);
-                this.projY = this.y + height/2 + (dy * this.z * 0.05);
-
-                // Direct mouse repulsion
-                if (dist < 200) {
-                    this.projX -= (dx / dist) * (200 - dist) * 0.1;
-                    this.projY -= (dy / dist) * (200 - dist) * 0.1;
-                }
-            }
-
-            draw() {
-                // Size changes based on Z depth to fake 3D
-                const renderSize = this.baseSize * (1 + this.z * 0.5);
-                ctx.beginPath();
-                ctx.arc(this.projX, this.projY, renderSize, 0, Math.PI * 2);
-                ctx.fillStyle = `rgba(124, 58, 237, ${0.15 + (this.z * 0.15)})`;
-                ctx.fill();
-            }
-        }
-
-        // Initialize Nodes
-        const numNodes = window.innerWidth > 768 ? 120 : 60; // Fewer nodes on mobile
-        for (let i = 0; i < numNodes; i++) {
-            particles.push(new Particle());
-        }
-
-        function animateMatrix() {
-            ctx.clearRect(0, 0, width, height);
-
-            for (let i = 0; i < particles.length; i++) {
-                particles[i].update(mouseX, mouseY);
-                particles[i].draw();
-
-                // Draw connecting lines to nearby particles
-                for (let j = i + 1; j < particles.length; j++) {
-                    const dx = particles[i].projX - particles[j].projX;
-                    const dy = particles[i].projY - particles[j].projY;
-                    const dist = Math.sqrt(dx * dx + dy * dy);
-
-                    // Threshold distance for connections
-                    if (dist < 180) {
-                        ctx.beginPath();
-                        ctx.moveTo(particles[i].projX, particles[i].projY);
-                        ctx.lineTo(particles[j].projX, particles[j].projY);
-                        // Opacity fades as they get further apart
-                        ctx.strokeStyle = `rgba(124, 58, 237, ${0.12 * (1 - dist / 180)})`;
-                        ctx.lineWidth = 1;
-                        ctx.stroke();
-                    }
-                }
-
-                // Draw energetic connection from mouse to nearby nodes
-                const mxDistX = mouseX - particles[i].projX;
-                const mxDistY = mouseY - particles[i].projY;
-                const mDist = Math.sqrt(mxDistX * mxDistX + mxDistY * mxDistY);
-
-                if (mDist < 250) {
-                    ctx.beginPath();
-                    ctx.moveTo(particles[i].projX, particles[i].projY);
-                    ctx.lineTo(mouseX, mouseY);
-                    ctx.strokeStyle = `rgba(99, 102, 241, ${0.3 * (1 - mDist / 250)})`;
-                    ctx.lineWidth = 1.5;
-                    ctx.stroke();
-                }
-            }
-            requestAnimationFrame(animateMatrix);
-        }
-
-        animateMatrix(); // Start loop
-    });
-    </script>
 </body>
 </html>

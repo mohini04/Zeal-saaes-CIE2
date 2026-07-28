@@ -173,24 +173,24 @@ if ($userQ && mysqli_num_rows($userQ) > 0) {
     <title>ZCOER // SAAES — Admin Command</title>
     <link href="https://cdn.jsdelivr.net/npm/bootstrap@5.3.0/dist/css/bootstrap.min.css" rel="stylesheet">
     <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.4.0/css/all.min.css">
-    <link href="https://fonts.googleapis.com/css2?family=Plus+Jakarta+Sans:wght@300;400;500;600;700;800&family=JetBrains+Mono:wght@300;400;500&family=Space+Grotesk:wght@500;600;700&display=swap" rel="stylesheet">
+    <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;600;700&display=swap" rel="stylesheet">
 
     <style>
-        :root { --bg-base: #010103; --panel-bg: rgba(8, 8, 11, 0.88); --input-bg: rgba(16, 18, 23, 0.75); --silver-border: rgba(255, 255, 255, 0.1); --silver-text: #94a3b8; }
+        :root { --bg-base: #f4f6f9; --panel-bg: rgba(8, 8, 11, 0.88); --input-bg: rgba(16, 18, 23, 0.75); --silver-border: rgba(255, 255, 255, 0.1); --silver-text: #94a3b8; }
         * { font-family: 'Plus Jakarta Sans', sans-serif; letter-spacing: -0.01em; box-sizing: border-box; }
         body { background-color: var(--bg-base); color: #fff; min-height: 100vh; margin: 0; position: relative; overflow-x: hidden; }
         #cometField { position: fixed; top: 0; left: 0; width: 100%; height: 100%; z-index: 0; pointer-events: none; }
         .dashboard-container { position: relative; z-index: 5; padding: 40px; }
-        .glass-card { background: var(--panel-bg); border: 1px solid var(--silver-border); border-radius: 16px; backdrop-filter: blur(24px); box-shadow: 0 30px 60px -20px rgba(0,0,0,0.9); margin-bottom: 24px; padding: 24px; }
-        .eyebrow { font-family: 'JetBrains Mono', monospace; font-size: 0.68rem; text-transform: uppercase; letter-spacing: 0.14em; color: var(--silver-text); }
-        .form-control-custom, .form-select-custom { background-color: var(--input-bg); border: 1px solid var(--silver-border); color: #f1f5f9; border-radius: 8px; padding: 10px 14px; font-size: 0.85rem; width: 100%; }
+        .glass-card { background: var(--panel-bg); border: 1px solid var(--silver-border); border-radius: 4px; backdrop-filter: blur(24px); box-shadow: 0 1px 3px rgba(0,0,0,0.1); margin-bottom: 24px; padding: 24px; }
+        .eyebrow { font-family: 'JetBrains Mono', monospace; font-size: 0.68rem; letter-spacing: 0.14em; color: var(--silver-text); }
+        .form-control-custom, .form-select-custom { background-color: var(--input-bg); border: 1px solid var(--silver-border); color: #f1f5f9; border-radius: 4px; padding: 10px 14px; font-size: 0.85rem; width: 100%; }
         .form-control-custom:focus, .form-select-custom:focus { border-color: rgba(255, 255, 255, 0.35); outline: none; background-color: var(--input-bg); color: #fff; }
         .form-select-custom option { background-color: #0b0c0e; color: #f1f5f9; }
-        .btn-action-silver { background: linear-gradient(180deg, #ffffff 0%, #cbd5e1 100%); color: #050508; border: none; border-radius: 8px; padding: 8px 14px; font-weight: 700; font-size: 0.8rem; text-decoration: none; }
-        .btn-action-silver:hover { background: #ffffff; box-shadow: 0 4px 16px rgba(255, 255, 255, 0.2); }
-        .btn-outline-silver { background: transparent; border: 1px solid var(--silver-border); color: #fff; border-radius: 8px; padding: 8px 14px; font-weight: 600; font-size: 0.8rem; }
+        .btn-action-silver { background: linear-gradient(180deg, #ffffff 0%, #cbd5e1 100%); color: #050508; border: none; border-radius: 4px; padding: 8px 14px; font-weight: 700; font-size: 0.8rem; text-decoration: none; }
+        .btn-action-silver:hover { background: #ffffff; box-shadow: 0 1px 3px rgba(0,0,0,0.1); }
+        .btn-outline-silver { background: transparent; border: 1px solid var(--silver-border); color: #fff; border-radius: 4px; padding: 8px 14px; font-weight: 600; font-size: 0.8rem; }
         .table-dark-custom { --bs-table-bg: transparent; color: #fff; }
-        .table-dark-custom th { border-bottom: 1px solid var(--silver-border); color: var(--silver-text); font-family: 'JetBrains Mono', monospace; font-size: 0.7rem; text-transform: uppercase; }
+        .table-dark-custom th { border-bottom: 1px solid var(--silver-border); color: var(--silver-text); font-family: 'JetBrains Mono', monospace; font-size: 0.7rem; }
         .table-dark-custom td { border-bottom: 1px solid rgba(255,255,255,0.04); vertical-align: middle; font-size: 0.85rem; }
     </style>
 </head>

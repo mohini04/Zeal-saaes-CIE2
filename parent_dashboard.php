@@ -123,8 +123,8 @@ $avgPercentage = ($totalPossible > 0) ? round(($totalObtained / $totalPossible) 
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
     <title>Parent Portal | SAAES</title>
     
-    <!-- Professional Fonts matching Landing Page -->
-    <link href="https://fonts.googleapis.com/css2?family=Space+Grotesk:wght@400;600;700&family=JetBrains+Mono:wght@100;400;700;800&family=Inter:wght@400;500;600&display=swap" rel="stylesheet">
+    <!-- Clean Academic Fonts -->
+    <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700&display=swap" rel="stylesheet">
     <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.4.0/css/all.min.css">
     
     <!-- PDF & Excel Libraries -->
@@ -133,362 +133,386 @@ $avgPercentage = ($totalPossible > 0) ? round(($totalObtained / $totalPossible) 
 
     <style>
         /* ==========================================================================
-           RIGID LIGHT SCI-FI DESIGN SYSTEM
+           TRADITIONAL ACADEMIC DESIGN SYSTEM
            ========================================================================== */
         :root {
-            --bg-base: #ffffff;
-            --bg-panel: #fcfcfd;
-            --text-dark: #0f172a;
-            --text-tech: #475569;
-            --text-light: #94a3b8;
+            --bg-body: #f8fafc;
+            --bg-card: #ffffff;
+            --navy-primary: #0f172a;
+            --blue-accent: #2563eb;
+            --text-main: #1e293b;
+            --text-muted: #64748b;
+            --border-color: #e2e8f0;
             
-            --accent-main: #7c3aed; /* Electric purple */
-            --accent-glow: #a855f7;
+            --success: #10b981;
+            --danger: #ef4444;
+            --warning: #f59e0b;
             
-            --grid-size: 40px;
-            --border-harsh: 2px solid var(--text-dark);
+            --radius-md: 8px;
+            --radius-lg: 12px;
+            --shadow-sm: 0 1px 3px rgba(0,0,0,0.1);
+            --shadow-md: 0 4px 6px -1px rgba(0,0,0,0.1);
             
-            --font-head: 'Space Grotesk', sans-serif;
-            --font-mono: 'JetBrains Mono', monospace;
-            --font-body: 'Inter', sans-serif;
+            --font-main: 'Inter', system-ui, -apple-system, sans-serif;
         }
 
         * { margin: 0; padding: 0; box-sizing: border-box; }
 
         body {
-            background-color: var(--bg-base);
-            /* Architectural Blueprint Grid */
-            background-image: 
-                linear-gradient(rgba(124, 58, 237, 0.08) 1px, transparent 1px),
-                linear-gradient(90deg, rgba(124, 58, 237, 0.08) 1px, transparent 1px);
-            background-size: var(--grid-size) var(--grid-size);
-            background-position: center center;
-            color: var(--text-dark);
-            font-family: var(--font-body);
+            background-color: var(--bg-body);
+            color: var(--text-main);
+            font-family: var(--font-main);
             min-height: 100vh;
-            overflow-x: hidden;
-            
-            /* PIXELATED PURPLE CUSTOM CURSOR */
-            cursor: url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' width='32' height='32' viewBox='0 0 32 32' shape-rendering='crispEdges'%3E%3Cpath d='M4 4v20l5-5 4 8 4-2-4-8h8L4 4z' fill='%237c3aed' stroke='white' stroke-width='2'/%3E%3C/svg%3E") 4 4, auto;
+            display: flex;
+            flex-direction: column;
+            line-height: 1.5;
             -webkit-font-smoothing: antialiased;
         }
 
-        /* PIXELATED HOVER CURSOR */
-        a, button, input, select, textarea, .interactive {
-            cursor: url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' width='32' height='32' viewBox='0 0 32 32' shape-rendering='crispEdges'%3E%3Cpath d='M4 4v20l5-5 4 8 4-2-4-8h8L4 4z' fill='%23a855f7' stroke='%230f172a' stroke-width='2.5'/%3E%3C/svg%3E") 4 4, pointer !important;
-        }
-
-        ::selection { background: var(--accent-main); color: #fff; }
+        ::selection { background: var(--blue-accent); color: #fff; }
         a { text-decoration: none; color: inherit; }
 
-        /* ================= HEADER ================= */
-        .tech-header {
-            background: rgba(255, 255, 255, 0.95);
-            border-bottom: var(--border-harsh);
-            padding: 1.5rem 2.5rem;
+        .app-container { display: flex; min-height: 100vh; width: 100%; position: relative; }
+
+        /* ================= SIDEBAR ================= */
+        .sidebar {
+            width: 260px;
+            background: var(--bg-card);
+            border-right: 1px solid var(--border-color);
+            display: flex; flex-direction: column;
+            position: fixed; top: 0; bottom: 0; left: 0; z-index: 200;
+        }
+        .sidebar-header {
+            padding: 1.5rem; border-bottom: 1px solid var(--border-color);
+            display: flex; align-items: center; gap: 0.75rem;
+        }
+        .brand-logo {
+            display: flex; align-items: center; gap: 0.75rem;
+            font-weight: 700; font-size: 1.25rem; color: var(--navy-primary);
+        }
+        .brand-logo i { color: var(--blue-accent); font-size: 1.4rem; }
+        
+        .sidebar-menu { padding: 1.5rem 1rem; display: flex; flex-direction: column; gap: 0.25rem; flex: 1; overflow-y: auto; }
+        .menu-label { font-size: 0.75rem; color: var(--text-muted); margin: 1.5rem 0.5rem 0.5rem; font-weight: 600; text-transform: uppercase; letter-spacing: 0.05em;}
+        
+        .sidebar-link {
+            display: flex; align-items: center; gap: 0.75rem; padding: 0.65rem 1rem;
+            color: var(--text-main); font-weight: 500; font-size: 0.9rem; border-radius: var(--radius-md);
+            transition: all 0.2s ease;
+        }
+        .sidebar-link:hover { background: #f1f5f9; color: var(--blue-accent); }
+        .sidebar-link.active {
+            background: #eff6ff; color: var(--blue-accent); font-weight: 600;
+        }
+        .sidebar-link i { font-size: 1rem; width: 20px; text-align: center; color: var(--text-muted); }
+        .sidebar-link.active i, .sidebar-link:hover i { color: var(--blue-accent); }
+
+        .sidebar-user {
+            padding: 1.25rem; border-top: 1px solid var(--border-color);
+            display: flex; align-items: center; gap: 0.75rem; background: var(--bg-card);
+        }
+        .avatar {
+            width: 36px; height: 36px; background: #f1f5f9; border-radius: 50%;
+            display: flex; align-items: center; justify-content: center;
+            font-weight: 600; font-size: 1rem; color: var(--navy-primary);
+        }
+
+        /* ================= MAIN CONTENT ================= */
+        .content-wrapper { margin-left: 260px; flex: 1; display: flex; flex-direction: column; min-height: 100vh;}
+        
+        .top-navbar {
+            background: var(--bg-card); border-bottom: 1px solid var(--border-color); padding: 0 2rem;
             display: flex; justify-content: space-between; align-items: center;
-            position: sticky; top: 0; z-index: 100;
+            position: sticky; top: 0; z-index: 100; height: 70px;
         }
-        .sys-logo {
-            display: flex; align-items: center; gap: 1rem;
-            font-family: var(--font-head); font-weight: 700; font-size: 1.4rem;
-            text-transform: uppercase;
-        }
-        .sys-logo i { color: var(--accent-main); }
-        .sys-logo .line { width: 30px; height: 2px; background: var(--text-dark); transform: skewX(-45deg); }
-
-        .sys-clock {
-            font-family: var(--font-mono); font-size: 0.85rem; font-weight: 700;
-            background: var(--text-dark); color: #fff; padding: 0.5rem 1rem;
-            display: flex; align-items: center; gap: 0.5rem;
-            clip-path: polygon(10px 0, 100% 0, 100% calc(100% - 10px), calc(100% - 10px) 100%, 0 100%, 0 10px);
-        }
-        .sys-clock .blink { color: var(--accent-glow); animation: blinker 1s linear infinite; }
-        @keyframes blinker { 50% { opacity: 0; } }
-
-        .dashboard-container {
-            max-width: 1400px; margin: 0 auto; padding: 3rem 2.5rem; flex: 1;
-        }
+        .top-navbar h3 { font-weight: 600; font-size: 1.1rem; color: var(--navy-primary); margin: 0; }
+        
+        .main-content { padding: 2rem; flex: 1; max-width: 1400px; width: 100%; margin: 0 auto; display: flex; flex-direction: column; gap: 1.5rem; }
 
         /* ================= MODULE CARDS ================= */
         .module-card {
-            background: var(--bg-panel); border: 2px solid var(--text-dark);
-            padding: 2.5rem; margin-bottom: 2rem; position: relative; transition: transform 0.2s, box-shadow 0.2s;
-            clip-path: polygon(0 0, calc(100% - 20px) 0, 100% 20px, 100% 100%, 20px 100%, 0 calc(100% - 20px));
+            background: var(--bg-card); border: 1px solid var(--border-color);
+            padding: 1.5rem 2rem; border-radius: var(--radius-lg); box-shadow: var(--shadow-sm); 
         }
-        .module-card::before { content: ''; position: absolute; top: 0; left: 0; width: 30px; height: 30px; border-right: 2px solid var(--text-dark); border-bottom: 2px solid var(--text-dark); }
-        .module-card:hover { transform: translate(-4px, -4px); box-shadow: 10px 10px 0px rgba(124, 58, 237, 1); border-color: var(--accent-main); }
         
-        .mod-title { font-family: var(--font-head); font-size: 1.5rem; font-weight: 700; margin-bottom: 1rem; text-transform: uppercase; display: flex; align-items: center; gap: 0.75rem;}
-        .mod-title i { color: var(--accent-main); }
-
         .hero-banner {
-            background: var(--bg-base); border: 2px solid var(--text-dark);
-            padding: 3rem; margin-bottom: 2rem; position: relative; overflow: hidden;
-            clip-path: polygon(0 0, calc(100% - 30px) 0, 100% 30px, 100% 100%, 0 100%);
+            background: linear-gradient(135deg, var(--navy-primary), #1e3a8a); color: #fff;
+            padding: 2.5rem 3rem; border-radius: var(--radius-lg); box-shadow: var(--shadow-md);
         }
-        .hero-banner::after {
-            content: ''; position: absolute; top: 0; right: 0; width: 30px; height: 30px; background: var(--text-dark);
-        }
-        .hero-content { position: relative; z-index: 2; display: flex; justify-content: space-between; align-items: center; flex-wrap: wrap; gap: 1.5rem; }
+        .hero-content { display: flex; justify-content: space-between; align-items: center; flex-wrap: wrap; gap: 1.5rem; }
+        .hero-title { font-size: 1.75rem; font-weight: 700; margin-bottom: 0.5rem; }
+        .hero-subtitle { color: #e2e8f0; font-size: 0.95rem; margin: 0; }
+
+        /* ================= STATS GRID ================= */
+        .stats-grid { display: grid; grid-template-columns: repeat(auto-fit, minmax(200px, 1fr)); gap: 1.5rem; margin-bottom: 1rem;}
+        .stat-block { background: var(--bg-card); border: 1px solid var(--border-color); border-radius: var(--radius-lg); padding: 1.5rem; display: flex; flex-direction: column; justify-content: center; box-shadow: var(--shadow-sm); }
+        .stat-val { font-size: 2.25rem; font-weight: 700; color: var(--navy-primary); line-height: 1; margin-bottom: 0.5rem; }
+        .stat-label { font-size: 0.85rem; font-weight: 600; color: var(--text-muted); text-transform: uppercase; letter-spacing: 0.05em;}
+
+        /* ================= TAGS / BADGES ================= */
+        .sys-tag { font-size: 0.75rem; font-weight: 600; padding: 0.25rem 0.6rem; border-radius: 999px; display: inline-flex; align-items: center; gap: 0.4rem; background: #f1f5f9; color: var(--text-muted); }
+        .sys-tag.accent { background: #eff6ff; color: var(--blue-accent); }
+        .sys-tag.success { background: #dcfce7; color: var(--success); }
+        .sys-tag.danger { background: #fee2e2; color: var(--danger); }
+        .sys-tag.warning { background: #fef3c7; color: var(--warning); }
+        .sys-tag.info { background: #e0f2fe; color: #0284c7; }
 
         /* ================= BUTTONS ================= */
-        .btn-tech {
-            font-family: var(--font-mono); font-weight: 700; font-size: 0.85rem; text-transform: uppercase;
-            padding: 0.8rem 1.5rem; display: inline-flex; align-items: center; justify-content: center; gap: 0.5rem;
-            background: var(--bg-base); color: var(--text-dark); border: 2px solid var(--text-dark);
-            position: relative; overflow: hidden; z-index: 1; cursor: pointer;
-            clip-path: polygon(10px 0, 100% 0, 100% calc(100% - 10px), calc(100% - 10px) 100%, 0 100%, 0 10px);
-            transition: color 0.3s; text-decoration: none;
+        .btn {
+            font-family: var(--font-main); font-weight: 500; font-size: 0.85rem;
+            padding: 0.6rem 1.2rem; display: inline-flex; align-items: center; justify-content: center; gap: 0.5rem;
+            border-radius: var(--radius-md); border: 1px solid transparent; cursor: pointer; transition: all 0.2s ease; text-decoration: none;
         }
-        .btn-tech::before {
-            content: ''; position: absolute; top: 0; left: -100%; width: 100%; height: 100%;
-            background: var(--accent-main); z-index: -1; transition: left 0.3s cubic-bezier(0.7, 0, 0.3, 1);
-        }
-        .btn-tech:hover { color: #fff; border-color: var(--accent-main); }
-        .btn-tech:hover::before { left: 0; }
+        .btn-primary { background: var(--blue-accent); color: #fff; }
+        .btn-primary:hover { background: #1d4ed8; }
         
-        .btn-tech.primary { background: var(--text-dark); color: #fff; border-color: var(--text-dark); }
-        .btn-tech.primary:hover { color: #fff; }
-        .btn-tech.danger { border-color: #ef4444; color: #ef4444; }
-        .btn-tech.danger::before { background: #ef4444; }
-        .btn-tech.danger:hover { color: #fff; border-color: #ef4444; }
+        .btn-danger { background: var(--danger); color: #fff; }
+        .btn-danger:hover { background: #dc2626; }
 
-        .btn-outline { background: transparent; border: 2px solid var(--text-dark); color: var(--text-dark); font-family: var(--font-mono); font-weight: 700; font-size: 0.85rem; padding: 0.6rem 1.2rem; cursor: pointer; transition: 0.2s;}
-        .btn-outline:hover { background: var(--text-dark); color: #fff; }
-
-        /* ================= TELEMETRY STATS ================= */
-        .telemetry-grid { display: grid; grid-template-columns: repeat(4, 1fr); border: 2px solid var(--text-dark); margin-bottom: 3rem; background: var(--bg-panel);}
-        .tel-block { padding: 2rem 1.5rem; border-right: 2px solid var(--text-dark); display: flex; flex-direction: column; justify-content: center; }
-        .tel-block:last-child { border-right: none; }
-        .tel-val { font-family: var(--font-head); font-size: 3rem; font-weight: 700; color: var(--accent-main); line-height: 1; margin-bottom: 0.5rem; }
-        .tel-label { font-family: var(--font-mono); font-size: 0.8rem; font-weight: 700; text-transform: uppercase; color: var(--text-tech);}
-
-        /* ================= METADATA TAGS ================= */
-        .sys-tag { 
-            font-family: var(--font-mono); font-size: 0.75rem; font-weight: 700; padding: 0.3rem 0.6rem; 
-            border: 1px solid var(--text-dark); color: var(--text-dark); text-transform: uppercase; display: inline-flex; align-items: center; gap: 0.4rem;
-        }
-        .sys-tag.accent { background: rgba(124, 58, 237, 0.05); color: var(--accent-main); border-color: var(--accent-main); }
-        .sys-tag.success { background: rgba(16, 185, 129, 0.05); color: #10b981; border-color: #10b981; }
-        .sys-tag.danger { background: rgba(239, 68, 68, 0.05); color: #ef4444; border-color: #ef4444; }
+        .btn-outline { background: transparent; border-color: var(--border-color); color: var(--text-main); }
+        .btn-outline:hover { background: var(--bg-body); border-color: var(--text-muted); }
 
         /* ================= TABLES ================= */
-        .table-responsive { overflow-x: auto; background: var(--bg-base); border: 2px solid var(--text-dark); margin-bottom: 1rem; }
-        .custom-table { width: 100%; border-collapse: collapse; text-align: left; }
-        .custom-table th, .custom-table td { padding: 1rem 1.5rem; border-bottom: 1px solid var(--text-tech); font-size: 0.9rem; }
-        .custom-table th { background: var(--bg-panel); color: var(--text-dark); font-family: var(--font-mono); font-weight: 700; font-size: 0.8rem; text-transform: uppercase; }
-        .custom-table tbody tr { transition: background 0.2s ease; }
-        .custom-table tbody tr:hover { background: rgba(124, 58, 237, 0.05); }
+        .table-responsive { overflow-x: auto; border: 1px solid var(--border-color); border-radius: var(--radius-md); margin-bottom: 1rem; }
+        .custom-table { width: 100%; border-collapse: collapse; text-align: left; background: var(--bg-card); }
+        .custom-table th, .custom-table td { padding: 1rem 1.5rem; border-bottom: 1px solid var(--border-color); font-size: 0.9rem; vertical-align: middle; }
+        .custom-table th { background: var(--bg-body); color: var(--text-muted); font-weight: 600; font-size: 0.8rem; text-transform: uppercase; letter-spacing: 0.05em;}
+        .custom-table tbody tr:hover { background: #f8fafc; }
         .custom-table tbody tr:last-child td { border-bottom: none; }
 
         @media (max-width: 1024px) {
-            .telemetry-grid { grid-template-columns: repeat(2, 1fr); }
-            .tel-block:nth-child(2) { border-right: none; }
-            .tel-block:nth-child(1), .tel-block:nth-child(2) { border-bottom: 2px solid var(--text-dark); }
-            .hero-content { flex-direction: column; align-items: flex-start; }
-        }
-        @media (max-width: 600px) {
-            .telemetry-grid { grid-template-columns: 1fr; }
-            .tel-block { border-right: none !important; border-bottom: 2px solid var(--text-dark); }
-            .tel-block:last-child { border-bottom: none; }
+            .sidebar { transform: translateX(-100%); transition: transform 0.3s; }
+            .sidebar.show { transform: translateX(0); }
+            .content-wrapper { margin-left: 0; }
         }
     </style>
 </head>
 <body>
 
-<header class="tech-header">
-    <div class="sys-logo interactive">
-        <i class="fa-solid fa-user-shield"></i> Parent Portal <div class="line"></div> ZCOER
+<div class="app-container">
+
+    <!-- LEFT SIDEBAR -->
+    <aside class="sidebar" id="erpSidebar">
+        <div class="sidebar-header">
+            <a href="parent_dashboard.php" class="brand-logo">
+                <i class="fa-solid fa-user-shield"></i>
+                <span>Parent Portal</span>
+            </a>
+        </div>
+
+        <div class="sidebar-menu">
+            <div class="menu-label">Navigation</div>
+            <a href="parent_dashboard.php" class="sidebar-link active">
+                <i class="fa-solid fa-house"></i> <span>Dashboard Overview</span>
+            </a>
+
+            <div class="menu-label">Account</div>
+            <a href="auth/logout.php" class="sidebar-link" style="color: var(--danger);">
+                <i class="fa-solid fa-power-off"></i> <span>Logout</span>
+            </a>
+        </div>
+
+        <div class="sidebar-user">
+            <div class="avatar"><?php echo strtoupper(substr($parentName, 0, 1)); ?></div>
+            <div>
+                <div style="font-weight: 600; font-size: 0.85rem; color: var(--navy-primary);"><?php echo htmlspecialchars($parentName); ?></div>
+                <div style="font-size: 0.75rem; color: var(--text-muted);">Parent / Guardian</div>
+            </div>
+        </div>
+    </aside>
+
+    <!-- CONTENT WRAPPER -->
+    <div class="content-wrapper">
+        <header class="top-navbar">
+            <div class="d-flex align-items-center gap-3">
+                <button class="btn btn-outline d-lg-none" id="sidebarToggle" style="padding: 0.4rem 0.8rem;"><i class="fa-solid fa-bars"></i></button>
+                <h3>Parent Dashboard</h3>
+            </div>
+
+            <div style="display: flex; align-items: center; gap: 1rem;">
+                <div style="font-size: 0.85rem; font-weight: 600; color: var(--text-muted); display: flex; align-items: center; gap: 0.5rem;">
+                    <i class="fa-regular fa-clock"></i> <span id="clock">00:00:00</span>
+                </div>
+            </div>
+        </header>
+
+        <main class="main-content">
+
+        <?php if (!$wardStudent): ?>
+            <!-- UNLINKED WARD ALERT -->
+            <div class="module-card" style="text-align: center; padding: 4rem 2rem;">
+                <i class="fa-solid fa-user-slash" style="font-size: 3rem; color: var(--border-color); margin-bottom: 1rem;"></i>
+                <h2 style="font-size: 1.8rem; font-weight: 700; margin-bottom: 0.5rem; color: var(--navy-primary);">No Student Linked to Account</h2>
+                <p style="color: var(--text-muted); max-width: 600px; margin: 0 auto 1.5rem; font-size: 0.95rem;">
+                    We could not find an approved student account matching your registered parent profile. Please contact college administration to link your student.
+                </p>
+                <?php if (!empty($parentEmail)): ?>
+                    <p style="font-size: 0.85rem; color: var(--text-main);">Registered Parent Email: <strong><?php echo htmlspecialchars($parentEmail); ?></strong></p>
+                <?php endif; ?>
+            </div>
+        <?php else: ?>
+
+            <!-- WARD HEADER BANNER -->
+            <div class="hero-banner" style="margin-bottom: 1.5rem;">
+                <div class="hero-content">
+                    <div>
+                        <h1 class="hero-title"><?php echo htmlspecialchars($wardStudent['student_name'] ?: 'Student Overview'); ?></h1>
+                        <p class="hero-subtitle">
+                            PRN: <strong><?php echo htmlspecialchars($wardStudent['prn']); ?></strong> &bull; 
+                            Roll No: <strong><?php echo htmlspecialchars($wardStudent['roll_no'] ?: 'N/A'); ?></strong> &bull; 
+                            Dept: <strong><?php echo htmlspecialchars($wardStudent['department'] ?: 'Engineering'); ?></strong>
+                        </p>
+                    </div>
+                    <div style="display: flex; gap: 0.75rem;">
+                        <button class="btn btn-outline" style="border-color: rgba(255,255,255,0.4); color: #fff;" onclick="exportPDF()">
+                            <i class="fa-solid fa-file-pdf"></i> Export PDF
+                        </button>
+                        <button class="btn btn-primary" style="background: #fff; color: var(--navy-primary);" onclick="exportExcel()">
+                            <i class="fa-solid fa-file-excel"></i> Export Excel
+                        </button>
+                    </div>
+                </div>
+            </div>
+
+            <div id="exportTable">
+                <!-- STATS SUMMARY (4 Columns) -->
+                <div class="stats-grid">
+                    <div class="stat-block">
+                        <div class="stat-val"><?php echo $totalAssigned; ?></div>
+                        <div class="stat-label">Assigned Activities</div>
+                    </div>
+                    <div class="stat-block">
+                        <div class="stat-val" style="color: var(--success);"><?php echo $totalSubmitted; ?></div>
+                        <div class="stat-label">Completed</div>
+                    </div>
+                    <div class="stat-block">
+                        <div class="stat-val" style="color: var(--danger);"><?php echo $totalPending; ?></div>
+                        <div class="stat-label">Pending</div>
+                    </div>
+                    <div class="stat-block">
+                        <div class="stat-val" style="color: var(--blue-accent);"><?php echo $avgPercentage; ?>%</div>
+                        <div class="stat-label">Avg Score</div>
+                    </div>
+                </div>
+
+                <!-- SUBMISSIONS & EVALUATION SHEET -->
+                <div class="module-card">
+                    <h3 style="font-size: 1.25rem; font-weight: 700; color: var(--navy-primary); margin-bottom: 1.5rem;"><i class="fa-solid fa-clipboard-list me-2"></i> Submissions & Evaluations</h3>
+                    
+                    <div class="table-responsive">
+                        <table class="custom-table">
+                            <thead>
+                                <tr>
+                                    <th>Activity Title</th>
+                                    <th>Status</th>
+                                    <th>Submission Date</th>
+                                    <th>Faculty</th>
+                                    <th>Score</th>
+                                </tr>
+                            </thead>
+                            <tbody>
+                                <?php if (empty($wardSubmissions)): ?>
+                                    <tr>
+                                        <td colspan="5" style="text-align: center; color: var(--text-muted); padding: 2.5rem; font-weight: 500;">
+                                            No activity submissions recorded for your ward yet.
+                                        </td>
+                                    </tr>
+                                <?php else: ?>
+                                    <?php foreach ($wardSubmissions as $sub): 
+                                        $is_late = !empty($sub['is_late']);
+                                        $score = $sub['marks'] !== null ? $sub['marks'] : $sub['max_marks'];
+                                    ?>
+                                    <tr>
+                                        <td>
+                                            <strong style="font-size: 1rem; color: var(--text-main); display: block; margin-bottom: 0.2rem;"><?php echo htmlspecialchars($sub['activity_title']); ?></strong>
+                                            <span class="sys-tag accent" style="font-size: 0.7rem; margin: 0;">Type: <?php echo htmlspecialchars(ucfirst($sub['activity_type'])); ?></span>
+                                        </td>
+                                        <td>
+                                            <?php if ($is_late): ?>
+                                                <span class="sys-tag warning"><i class="fa-solid fa-clock"></i> Late</span>
+                                            <?php else: ?>
+                                                <span class="sys-tag success"><i class="fa-solid fa-check"></i> On Time</span>
+                                            <?php endif; ?>
+                                        </td>
+                                        <td style="font-size: 0.85rem; color: var(--text-muted);">
+                                            <?php echo date('M d, Y h:i A', strtotime($sub['submission_date'])); ?>
+                                        </td>
+                                        <td>
+                                            <strong style="font-weight: 500; font-size: 0.9rem; color: var(--text-main);"><?php echo htmlspecialchars($sub['faculty_name'] ?: 'Faculty'); ?></strong>
+                                        </td>
+                                        <td>
+                                            <strong style="font-size: 1.1rem; color: var(--navy-primary);"><?php echo $score; ?></strong>
+                                            <span style="font-size: 0.8rem; color: var(--text-muted);">/ <?php echo $sub['max_marks']; ?></span>
+                                        </td>
+                                    </tr>
+                                    <?php endforeach; ?>
+                                <?php endif; ?>
+                            </tbody>
+                        </table>
+                    </div>
+                </div>
+
+                <!-- ALL ASSIGNED ACTIVITIES -->
+                <div class="module-card">
+                    <h3 style="font-size: 1.25rem; font-weight: 700; color: var(--navy-primary); margin-bottom: 1.5rem;"><i class="fa-solid fa-list-check me-2"></i> All Assigned Activities</h3>
+                    
+                    <div class="table-responsive">
+                        <table class="custom-table">
+                            <thead>
+                                <tr>
+                                    <th>Activity Title</th>
+                                    <th>Class / Group</th>
+                                    <th>Due Date</th>
+                                    <th>Max Marks</th>
+                                    <th>Status</th>
+                                </tr>
+                            </thead>
+                            <tbody>
+                                <?php if (empty($wardActivities)): ?>
+                                    <tr><td colspan="5" style="text-align: center; color: var(--text-muted); padding: 2.5rem; font-weight: 500;">No activities assigned yet.</td></tr>
+                                <?php else: ?>
+                                    <?php 
+                                    $submitted_act_ids = array_column($wardSubmissions, 'activity_id');
+                                    foreach ($wardActivities as $act): 
+                                        $is_done = in_array($act['activity_id'], $submitted_act_ids);
+                                    ?>
+                                    <tr>
+                                        <td><strong style="font-size: 0.95rem; color: var(--text-main);"><?php echo htmlspecialchars($act['title']); ?></strong></td>
+                                        <td><span class="sys-tag accent"><?php echo htmlspecialchars($act['class_name'] ?: 'All Class'); ?></span></td>
+                                        <td style="font-size: 0.85rem; color: var(--text-muted);"><?php echo date('M d, Y', strtotime($act['due_date'])); ?></td>
+                                        <td style="font-weight: 600;"><?php echo $act['max_marks']; ?> Marks</td>
+                                        <td>
+                                            <?php if ($is_done): ?>
+                                                <span class="sys-tag success"><i class="fa-solid fa-check"></i> Completed</span>
+                                            <?php else: ?>
+                                                <span class="sys-tag danger"><i class="fa-solid fa-hourglass-half"></i> Pending</span>
+                                            <?php endif; ?>
+                                        </td>
+                                    </tr>
+                                    <?php endforeach; ?>
+                                <?php endif; ?>
+                            </tbody>
+                        </table>
+                    </div>
+                </div>
+            </div>
+        <?php endif; ?>
+
+        </main>
     </div>
-    
-    <div style="display: flex; gap: 1.5rem; align-items: center;">
-        <div class="sys-clock interactive">
-            Time <span class="blink">|</span> <span id="clock">00:00:00</span>
-        </div>
-        <a href="auth/logout.php" class="btn-tech danger interactive">
-            <i class="fa-solid fa-power-off"></i> Logout
-        </a>
-    </div>
-</header>
-
-<div class="dashboard-container">
-
-    <?php if (!$wardStudent): ?>
-        <!-- UNLINKED WARD ALERT -->
-        <div class="module-card interactive" style="text-align: center; padding: 4rem 2rem;">
-            <i class="fa-solid fa-user-slash" style="font-size: 3rem; color: var(--text-tech); margin-bottom: 1rem;"></i>
-            <h2 style="font-family: var(--font-head); font-size: 1.8rem; font-weight: 700; text-transform: uppercase; margin-bottom: 0.5rem; color: var(--text-dark);">No Student Linked to Account</h2>
-            <p style="font-family: var(--font-mono); color: var(--text-tech); max-width: 600px; margin: 0 auto 1.5rem; font-size: 0.9rem;">
-                We could not find an approved student account matching your registered parent profile. Please contact college administration to link your student.
-            </p>
-            <?php if (!empty($parentEmail)): ?>
-                <p style="font-family: var(--font-mono); font-size: 0.85rem; color: var(--text-dark);">Registered Parent Email: <strong><?php echo htmlspecialchars($parentEmail); ?></strong></p>
-            <?php endif; ?>
-        </div>
-    <?php else: ?>
-
-        <!-- WARD HEADER BANNER -->
-        <div class="hero-banner interactive">
-            <div class="hero-content">
-                <div>
-                    <h1 style="font-family: var(--font-head); font-size: 2.2rem; margin-bottom: 0.5rem; font-weight: 700; text-transform: uppercase;"><?php echo htmlspecialchars($wardStudent['student_name'] ?: 'Student Overview'); ?></h1>
-                    <p style="color: var(--text-tech); font-family: var(--font-mono); font-size: 0.95rem; margin-bottom: 0;">
-                        PRN: <span style="color: var(--accent-main); font-weight: 700;"><?php echo htmlspecialchars($wardStudent['prn']); ?></span> &bull; 
-                        Roll No: <strong><?php echo htmlspecialchars($wardStudent['roll_no'] ?: 'N/A'); ?></strong> &bull; 
-                        Dept: <strong><?php echo htmlspecialchars($wardStudent['department'] ?: 'Engineering'); ?></strong>
-                    </p>
-                </div>
-                <div style="display: flex; gap: 0.75rem;">
-                    <button class="btn-tech interactive" onclick="exportPDF()">
-                        <i class="fa-solid fa-file-pdf"></i> Export PDF
-                    </button>
-                    <button class="btn-tech primary interactive" onclick="exportExcel()">
-                        <i class="fa-solid fa-file-excel"></i> Export Excel
-                    </button>
-                </div>
-            </div>
-        </div>
-
-        <div id="exportTable">
-            <!-- STATS SUMMARY (4 Columns) -->
-            <div class="telemetry-grid interactive">
-                <div class="tel-block">
-                    <div class="tel-val" style="color: var(--text-dark);"><?php echo $totalAssigned; ?></div>
-                    <div class="tel-label">Assigned Activities</div>
-                </div>
-                <div class="tel-block">
-                    <div class="tel-val" style="color: #10b981;"><?php echo $totalSubmitted; ?></div>
-                    <div class="tel-label">Completed</div>
-                </div>
-                <div class="tel-block">
-                    <div class="tel-val" style="color: #ef4444;"><?php echo $totalPending; ?></div>
-                    <div class="tel-label">Pending</div>
-                </div>
-                <div class="tel-block">
-                    <div class="tel-val" style="color: #f59e0b;"><?php echo $avgPercentage; ?>%</div>
-                    <div class="tel-label">Avg Score</div>
-                </div>
-            </div>
-
-            <!-- SUBMISSIONS & EVALUATION SHEET -->
-            <div class="module-card interactive">
-                <h3 class="mod-title"><i class="fa-solid fa-clipboard-list"></i> Submissions & Evaluations</h3>
-                
-                <div class="table-responsive">
-                    <table class="custom-table">
-                        <thead>
-                            <tr>
-                                <th>Activity Title</th>
-                                <th>Status</th>
-                                <th>Submission Date</th>
-                                <th>Faculty</th>
-                                <th>Score</th>
-                            </tr>
-                        </thead>
-                        <tbody>
-                            <?php if (empty($wardSubmissions)): ?>
-                                <tr>
-                                    <td colspan="5" style="text-align: center; color: var(--text-tech); padding: 2.5rem; font-family: var(--font-mono); font-weight: 700;">
-                                        No activity submissions recorded for your ward yet.
-                                    </td>
-                                </tr>
-                            <?php else: ?>
-                                <?php foreach ($wardSubmissions as $sub): 
-                                    $is_late = !empty($sub['is_late']);
-                                    $score = $sub['marks'] !== null ? $sub['marks'] : $sub['max_marks'];
-                                ?>
-                                <tr>
-                                    <td>
-                                        <strong style="font-family: var(--font-head); font-size: 1.05rem; text-transform: uppercase;"><?php echo htmlspecialchars($sub['activity_title']); ?></strong>
-                                        <div style="font-family: var(--font-mono); font-size: 0.75rem; color: var(--text-tech); margin-top: 4px;">Type: <?php echo htmlspecialchars(ucfirst($sub['activity_type'])); ?></div>
-                                    </td>
-                                    <td>
-                                        <?php if ($is_late): ?>
-                                            <span class="sys-tag warning"><i class="fa-solid fa-clock"></i> Late</span>
-                                        <?php else: ?>
-                                            <span class="sys-tag success"><i class="fa-solid fa-check"></i> On Time</span>
-                                        <?php endif; ?>
-                                    </td>
-                                    <td style="font-family: var(--font-mono); font-size: 0.85rem; color: var(--text-tech);">
-                                        <?php echo date('M d, Y h:i A', strtotime($sub['submission_date'])); ?>
-                                    </td>
-                                    <td>
-                                        <strong style="font-family: var(--font-body); font-size: 0.9rem; text-transform: uppercase;"><?php echo htmlspecialchars($sub['faculty_name'] ?: 'Faculty'); ?></strong>
-                                    </td>
-                                    <td>
-                                        <strong style="font-family: var(--font-mono); font-size: 1.1rem; color: var(--accent-main);"><?php echo $score; ?></strong>
-                                        <span style="font-family: var(--font-mono); font-size: 0.8rem; color: var(--text-tech);">/ <?php echo $sub['max_marks']; ?></span>
-                                    </td>
-                                </tr>
-                                <?php endforeach; ?>
-                            <?php endif; ?>
-                        </tbody>
-                    </table>
-                </div>
-            </div>
-
-            <!-- ALL ASSIGNED ACTIVITIES -->
-            <div class="module-card interactive">
-                <h3 class="mod-title"><i class="fa-solid fa-list-check"></i> All Assigned Activities</h3>
-                
-                <div class="table-responsive">
-                    <table class="custom-table">
-                        <thead>
-                            <tr>
-                                <th>Activity Title</th>
-                                <th>Class / Group</th>
-                                <th>Due Date</th>
-                                <th>Max Marks</th>
-                                <th>Status</th>
-                            </tr>
-                        </thead>
-                        <tbody>
-                            <?php if (empty($wardActivities)): ?>
-                                <tr><td colspan="5" style="text-align: center; color: var(--text-tech); padding: 2.5rem; font-family: var(--font-mono); font-weight: 700;">No activities assigned yet.</td></tr>
-                            <?php else: ?>
-                                <?php 
-                                $submitted_act_ids = array_column($wardSubmissions, 'activity_id');
-                                foreach ($wardActivities as $act): 
-                                    $is_done = in_array($act['activity_id'], $submitted_act_ids);
-                                ?>
-                                <tr>
-                                    <td><strong style="font-family: var(--font-head); font-size: 1.05rem; text-transform: uppercase;"><?php echo htmlspecialchars($act['title']); ?></strong></td>
-                                    <td><span class="sys-tag accent"><?php echo htmlspecialchars($act['class_name'] ?: 'All Class'); ?></span></td>
-                                    <td style="font-family: var(--font-mono); font-size: 0.85rem; color: var(--text-tech);"><?php echo date('M d, Y', strtotime($act['due_date'])); ?></td>
-                                    <td style="font-family: var(--font-mono); font-weight: 700;"><?php echo $act['max_marks']; ?> Marks</td>
-                                    <td>
-                                        <?php if ($is_done): ?>
-                                            <span class="sys-tag success"><i class="fa-solid fa-check"></i> Completed</span>
-                                        <?php else: ?>
-                                            <span class="sys-tag danger"><i class="fa-solid fa-hourglass-half"></i> Pending</span>
-                                        <?php endif; ?>
-                                    </td>
-                                </tr>
-                                <?php endforeach; ?>
-                            <?php endif; ?>
-                        </tbody>
-                    </table>
-                </div>
-            </div>
-        </div>
-    <?php endif; ?>
-
 </div>
 
 <script>
 document.addEventListener("DOMContentLoaded", () => {
-    // 1. Cursor Hover interactions
-    const attachCursorHover = () => {
-        document.querySelectorAll('.interactive, button, a, input, select, textarea').forEach(el => {
-            el.addEventListener("mouseenter", () => document.body.classList.add("hovering"));
-            el.addEventListener("mouseleave", () => document.body.classList.remove("hovering"));
-        });
-    };
-    attachCursorHover();
-    
-    const observer = new MutationObserver(attachCursorHover);
-    observer.observe(document.body, { childList: true, subtree: true });
+    // 1. Sidebar Toggle (Mobile)
+    const sidebarToggle = document.getElementById('sidebarToggle');
+    const erpSidebar = document.getElementById('erpSidebar');
+
+    if (sidebarToggle && erpSidebar) {
+      sidebarToggle.addEventListener('click', () => {
+        erpSidebar.classList.toggle('show');
+      });
+    }
 
     // 2. Live Clock
     const clockEl = document.getElementById('clock');

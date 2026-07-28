@@ -31,9 +31,42 @@ $uRow = $stmtU->fetch(PDO::FETCH_ASSOC);
 if ($uRow) {
     $studentPrn = $uRow['username'] ?? '';
     $linkedPrn  = $uRow['linked_student_prn'] ?? '';
-    $studentDept = $uRow['department'] ?? '';
-    $studentYear = $uRow['academic_year'] ?? 'FY';
-    $studentDiv  = $uRow['division'] ?? '';
+    $studentDept = trim($uRow['department'] ?? '');
+    $studentYear = trim($uRow['academic_year'] ?? 'FY');
+    $studentDiv  = trim($uRow['division'] ?? '');
+
+    // Auto-heal missing academic details from access_requests
+    if (empty($studentDept) || $studentDept === 'N/A' || empty($studentDiv) || $studentDiv === 'N/A' || $studentYear === 'FY') {
+        try {
+            $stmtAr = $pdo->prepare("SELECT department, academic_year, division FROM access_requests WHERE UPPER(prn_number) = UPPER(?) ORDER BY request_id DESC LIMIT 1");
+            $stmtAr->execute([$studentPrn]);
+            $arRow = $stmtAr->fetch(PDO::FETCH_ASSOC);
+            if ($arRow) {
+                $updateFields = [];
+                $updateParams = [];
+                if ((empty($studentDept) || $studentDept === 'N/A') && !empty($arRow['department'])) {
+                    $studentDept = trim($arRow['department']);
+                    $updateFields[] = "department = ?";
+                    $updateParams[] = $studentDept;
+                }
+                if ($studentYear === 'FY' && !empty($arRow['academic_year'])) {
+                    $studentYear = trim($arRow['academic_year']);
+                    $updateFields[] = "academic_year = ?";
+                    $updateParams[] = $studentYear;
+                }
+                if ((empty($studentDiv) || $studentDiv === 'N/A') && !empty($arRow['division'])) {
+                    $studentDiv = trim($arRow['division']);
+                    $updateFields[] = "division = ?";
+                    $updateParams[] = $studentDiv;
+                }
+                if (!empty($updateFields)) {
+                    $updateParams[] = $studentTableId;
+                    $stmtUpDept = $pdo->prepare("UPDATE users SET " . implode(", ", $updateFields) . " WHERE user_id = ?");
+                    $stmtUpDept->execute($updateParams);
+                }
+            }
+        } catch (PDOException $e) {}
+    }
 }
 
 function e($v) { return htmlspecialchars((string) ($v ?? ''), ENT_QUOTES, 'UTF-8'); }
@@ -148,271 +181,213 @@ function badgeClass($status) {
   <meta name="viewport" content="width=device-width, initial-scale=1.0">
   <title>Submission History | SAAES</title>
   
-  <!-- Professional Fonts matching Landing Page -->
-  <link href="https://fonts.googleapis.com/css2?family=Space+Grotesk:wght@400;600;700&family=JetBrains+Mono:wght@100;400;700;800&family=Inter:wght@400;500;600&display=swap" rel="stylesheet">
+  <!-- Clean Academic Fonts -->
+  <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700&display=swap" rel="stylesheet">
   <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.4.0/css/all.min.css">
   
   <style>
-/* ==========================================================================
-   RIGID LIGHT SCI-FI DESIGN SYSTEM (PURPLE EDITION)
-   ========================================================================== */
-:root {
-  --bg-base: #ffffff;
-  --bg-panel: #fcfcfd;
-  --text-dark: #0f172a;
-  --text-tech: #475569;
-  --text-light: #94a3b8;
-  
-  --accent-main: #7c3aed; /* Electric purple */
-  --accent-glow: #a855f7;
-  --accent-bg: rgba(124, 58, 237, 0.05);
-  
-  --grid-size: 40px;
-  --border-harsh: 2px solid var(--text-dark);
-  
-  --font-head: 'Space Grotesk', sans-serif;
-  --font-mono: 'JetBrains Mono', monospace;
-  --font-body: 'Inter', sans-serif;
-}
+    /* ==========================================================================
+       TRADITIONAL ACADEMIC DESIGN SYSTEM
+       ========================================================================== */
+    :root {
+      --bg-body: #f8fafc;
+      --bg-card: #ffffff;
+      --navy-primary: #0f172a;
+      --blue-accent: #2563eb;
+      --text-main: #1e293b;
+      --text-muted: #64748b;
+      --border-color: #e2e8f0;
+      
+      --success: #10b981;
+      --danger: #ef4444;
+      --warning: #f59e0b;
+      
+      --radius-md: 8px;
+      --radius-lg: 12px;
+      --shadow-sm: 0 1px 3px rgba(0,0,0,0.1);
+      --shadow-md: 0 4px 6px -1px rgba(0,0,0,0.1);
+      
+      --font-main: 'Inter', system-ui, -apple-system, sans-serif;
+    }
 
-* { margin: 0; padding: 0; box-sizing: border-box; }
+    * { margin: 0; padding: 0; box-sizing: border-box; }
 
-body {
-  font-family: var(--font-body);
-  background-color: var(--bg-base);
-  background-image: 
-      linear-gradient(rgba(124, 58, 237, 0.08) 1px, transparent 1px),
-      linear-gradient(90deg, rgba(124, 58, 237, 0.08) 1px, transparent 1px);
-  background-size: var(--grid-size) var(--grid-size);
-  background-position: center center;
-  color: var(--text-dark);
-  min-height: 100vh;
-  display: flex;
-  flex-direction: column;
-  line-height: 1.6;
-  cursor: url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' width='32' height='32' viewBox='0 0 32 32' shape-rendering='crispEdges'%3E%3Cpath d='M4 4v20l5-5 4 8 4-2-4-8h8L4 4z' fill='%237c3aed' stroke='white' stroke-width='2'/%3E%3C/svg%3E") 4 4, auto;
-  -webkit-font-smoothing: antialiased;
-}
+    body {
+      font-family: var(--font-main);
+      background-color: var(--bg-body);
+      color: var(--text-main);
+      min-height: 100vh;
+      display: flex;
+      flex-direction: column;
+      line-height: 1.5;
+      -webkit-font-smoothing: antialiased;
+    }
 
-a, button, input, select, textarea, .interactive {
-    cursor: url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' width='32' height='32' viewBox='0 0 32 32' shape-rendering='crispEdges'%3E%3Cpath d='M4 4v20l5-5 4 8 4-2-4-8h8L4 4z' fill='%23a855f7' stroke='%230f172a' stroke-width='2.5'/%3E%3C/svg%3E") 4 4, pointer !important;
-}
+    ::selection { background: var(--blue-accent); color: #fff; }
+    a { text-decoration: none; color: inherit; }
 
-::selection { background: var(--accent-main); color: #fff; }
-a { text-decoration: none; color: inherit; }
+    .app-container { display: flex; min-height: 100vh; width: 100%; position: relative;}
 
-.app-container { display: flex; min-height: 100vh; width: 100%; position: relative; z-index: 1;}
+    /* ================= SIDEBAR ================= */
+    .sidebar {
+      width: 260px;
+      background: var(--bg-card);
+      border-right: 1px solid var(--border-color);
+      display: flex; flex-direction: column;
+      position: fixed; top: 0; bottom: 0; left: 0; z-index: 200;
+    }
+    .sidebar-header {
+      padding: 1.5rem; border-bottom: 1px solid var(--border-color);
+      display: flex; align-items: center; gap: 0.75rem;
+    }
+    .brand-logo {
+      display: flex; align-items: center; gap: 0.75rem;
+      font-weight: 700; font-size: 1.25rem; color: var(--navy-primary);
+    }
+    .brand-logo i { color: var(--blue-accent); font-size: 1.4rem; }
+    
+    .sidebar-menu { padding: 1.5rem 1rem; display: flex; flex-direction: column; gap: 0.25rem; flex: 1; overflow-y: auto; }
+    .menu-label { font-size: 0.75rem; color: var(--text-muted); margin: 1.5rem 0.5rem 0.5rem; font-weight: 600; text-transform: uppercase; letter-spacing: 0.05em; display: flex; justify-content: space-between; align-items: center;}
+    
+    .sidebar-link {
+      display: flex; align-items: center; gap: 0.75rem; padding: 0.65rem 1rem;
+      color: var(--text-main); font-weight: 500; font-size: 0.9rem; border-radius: var(--radius-md);
+      transition: all 0.2s ease;
+    }
+    .sidebar-link:hover { background: #f1f5f9; color: var(--blue-accent); }
+    .sidebar-link.active {
+      background: #eff6ff; color: var(--blue-accent); font-weight: 600;
+    }
+    .sidebar-link i { font-size: 1rem; width: 20px; text-align: center; color: var(--text-muted); }
+    .sidebar-link.active i, .sidebar-link:hover i { color: var(--blue-accent); }
 
-/* ================= SIDEBAR ================= */
-.sidebar {
-  width: 280px;
-  background: rgba(255, 255, 255, 0.95);
-  border-right: var(--border-harsh);
-  display: flex; flex-direction: column;
-  position: fixed; top: 0; bottom: 0; left: 0; z-index: 200;
-}
-.sidebar-header {
-  padding: 1.5rem; border-bottom: var(--border-harsh);
-  display: flex; align-items: center; gap: 0.75rem;
-}
-.brand-logo {
-  display: flex; align-items: center; gap: 0.75rem;
-  font-family: var(--font-head); font-size: 1.3rem; font-weight: 700; color: var(--text-dark); text-transform: uppercase;
-}
-.brand-logo i { color: var(--accent-main); font-size: 1.4rem; }
+    /* Joined Classes UI in Sidebar */
+    .joined-class-item {
+        padding: 0.75rem 1rem;
+        margin-bottom: 0.5rem;
+        background: #f8fafc;
+        border: 1px solid var(--border-color);
+        border-left: 3px solid var(--blue-accent);
+        border-radius: var(--radius-md);
+        font-size: 0.8rem;
+    }
+    .joined-class-item strong { display: block; color: var(--text-main); margin-bottom: 0.2rem; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; font-weight: 600;}
+    .joined-class-item span { color: var(--text-muted); }
 
-.sidebar-menu { padding: 1.5rem 1rem; display: flex; flex-direction: column; gap: 0.3rem; flex: 1; overflow-y: auto; }
-.menu-label { font-family: var(--font-mono); font-size: 0.75rem; text-transform: uppercase; letter-spacing: 0.1em; color: var(--accent-main); margin: 1.5rem 0.5rem 0.5rem; font-weight: 700; display: flex; justify-content: space-between; align-items: center;}
+    .sidebar-user {
+      padding: 1.25rem; border-top: 1px solid var(--border-color);
+      display: flex; align-items: center; gap: 0.75rem; background: var(--bg-card);
+    }
+    .avatar {
+      width: 36px; height: 36px; background: #f1f5f9; border-radius: 50%;
+      display: flex; align-items: center; justify-content: center;
+      font-weight: 600; font-size: 1rem; color: var(--navy-primary);
+    }
 
-.sidebar-link {
-  display: flex; align-items: center; gap: 0.85rem; padding: 0.8rem 1rem;
-  color: var(--text-tech); font-family: var(--font-mono);
-  font-size: 0.85rem; font-weight: 600; transition: all 0.2s ease;
-  border: 2px solid transparent; position: relative;
-}
-.sidebar-link::before {
-    content: '>'; position: absolute; left: 5px; opacity: 0; color: var(--accent-main); transition: 0.2s;
-}
-.sidebar-link:hover { color: var(--accent-main); padding-left: 1.5rem; }
-.sidebar-link:hover::before { opacity: 1; }
-.sidebar-link.active {
-  background: var(--bg-base); color: var(--accent-main); 
-  border: 2px solid var(--accent-main);
-  box-shadow: 4px 4px 0px rgba(124, 58, 237, 0.2);
-}
-.sidebar-link i { font-size: 1.1rem; width: 22px; text-align: center; }
+    /* ================= MAIN CONTENT ================= */
+    .content-wrapper { margin-left: 260px; flex: 1; display: flex; flex-direction: column; min-height: 100vh;}
+    
+    .top-navbar {
+      background: var(--bg-card); border-bottom: 1px solid var(--border-color); padding: 0 2rem;
+      display: flex; justify-content: space-between; align-items: center;
+      position: sticky; top: 0; z-index: 100; height: 70px;
+    }
+    .top-navbar h3 { font-weight: 600; font-size: 1.1rem; color: var(--navy-primary); margin: 0; }
+    
+    .main-content { padding: 2rem; flex: 1; max-width: 1400px; width: 100%; margin: 0 auto; display: flex; flex-direction: column; gap: 1.5rem; }
 
-.sidebar-user {
-  padding: 1.25rem; border-top: var(--border-harsh);
-  display: flex; align-items: center; gap: 0.75rem; background: var(--bg-panel);
-}
-.avatar {
-  width: 40px; height: 40px; border: 2px solid var(--accent-main); background: var(--bg-base);
-  display: flex; align-items: center; justify-content: center;
-  font-family: var(--font-head); font-weight: 700; font-size: 1.2rem; color: var(--accent-main);
-}
+    /* ================= MODULE CARDS ================= */
+    .module-card {
+      background: var(--bg-card); border: 1px solid var(--border-color);
+      padding: 1.5rem 2rem; border-radius: var(--radius-lg); box-shadow: var(--shadow-sm); 
+    }
+    
+    .hero-banner {
+      background: linear-gradient(135deg, var(--navy-primary), #1e3a8a); color: #fff;
+      padding: 2.5rem 3rem; border-radius: var(--radius-lg); box-shadow: var(--shadow-md);
+    }
+    .hero-content { display: flex; justify-content: space-between; align-items: center; flex-wrap: wrap; gap: 1.5rem; }
+    .hero-title { font-size: 1.75rem; font-weight: 700; margin-bottom: 0.5rem; }
 
-/* Joined Classes UI in Sidebar */
-.joined-class-item {
-    padding: 0.75rem 1rem;
-    margin-bottom: 0.5rem;
-    background: var(--bg-panel);
-    border: 1px solid var(--border-light);
-    border-left: 3px solid var(--accent-main);
-    font-family: var(--font-mono);
-    font-size: 0.75rem;
-}
-.joined-class-item strong { display: block; color: var(--text-dark); margin-bottom: 0.2rem; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
-.joined-class-item span { color: var(--text-tech); }
+    /* ================= TAGS / BADGES ================= */
+    .sys-tag { font-size: 0.75rem; font-weight: 600; padding: 0.25rem 0.6rem; border-radius: 999px; display: inline-flex; align-items: center; gap: 0.4rem; background: #f1f5f9; color: var(--text-muted); border: 1px solid var(--border-color); }
+    .sys-tag.accent { background: #eff6ff; color: var(--blue-accent); border-color: #bfdbfe; }
+    .sys-tag.success { background: #dcfce7; color: var(--success); border-color: #bbf7d0; }
+    .sys-tag.danger { background: #fee2e2; color: var(--danger); border-color: #fecaca; }
+    .sys-tag.warning { background: #fef3c7; color: var(--warning); border-color: #fde68a; }
+    .sys-tag.info { background: #e0f2fe; color: #0284c7; border-color: #bae6fd; }
 
-/* ================= MAIN CONTENT ================= */
-.content-wrapper { margin-left: 280px; flex: 1; display: flex; flex-direction: column; min-height: 100vh; background: transparent; }
+    /* ================= BUTTONS ================= */
+    .btn {
+        font-family: var(--font-main); font-weight: 500; font-size: 0.85rem;
+        padding: 0.6rem 1.2rem; display: inline-flex; align-items: center; justify-content: center; gap: 0.5rem;
+        border-radius: var(--radius-md); border: 1px solid transparent; cursor: pointer; transition: all 0.2s ease; text-decoration: none;
+    }
+    .btn-primary { background: var(--blue-accent); color: #fff; }
+    .btn-primary:hover { background: #1d4ed8; }
 
-.top-navbar {
-  background: rgba(255, 255, 255, 0.95);
-  border-bottom: var(--border-harsh); padding: 1rem 2.5rem;
-  display: flex; justify-content: space-between; align-items: center;
-  position: sticky; top: 0; z-index: 100;
-}
-.top-navbar h3 { font-family: var(--font-mono); font-weight: 700; font-size: 1rem; color: var(--accent-main); text-transform: uppercase; margin: 0; }
+    .btn-outline { background: transparent; border-color: var(--border-color); color: var(--text-main); }
+    .btn-outline:hover { background: var(--bg-body); border-color: var(--text-muted); }
 
-.main-content { padding: 2rem 2.5rem; flex: 1; max-width: 1600px; width: 100%; margin: 0 auto; display: flex; flex-direction: column; gap: 2rem; }
+    /* ================= STATS GRID ================= */
+    .stats-grid { display: grid; grid-template-columns: repeat(auto-fit, minmax(200px, 1fr)); gap: 1.5rem; }
+    .stat-block { background: var(--bg-card); border: 1px solid var(--border-color); border-radius: var(--radius-lg); padding: 1.5rem; display: flex; flex-direction: column; justify-content: center; box-shadow: var(--shadow-sm); }
+    .stat-val { font-size: 2.25rem; font-weight: 700; color: var(--navy-primary); line-height: 1; margin-bottom: 0.5rem; }
+    .stat-label { font-size: 0.85rem; font-weight: 600; color: var(--text-muted); text-transform: uppercase; letter-spacing: 0.05em;}
 
-/* ================= MODULE CARDS ================= */
-.module-card {
-  background: var(--bg-panel); border: 2px solid var(--text-dark);
-  padding: 2.5rem; position: relative; transition: transform 0.2s, box-shadow 0.2s;
-  clip-path: polygon(0 0, calc(100% - 20px) 0, 100% 20px, 100% 100%, 20px 100%, 0 calc(100% - 20px));
-}
-.module-card::before { content: ''; position: absolute; top: 0; left: 0; width: 30px; height: 30px; border-right: 2px solid var(--text-dark); border-bottom: 2px solid var(--text-dark); }
-.module-card:hover { transform: translate(-4px, -4px); box-shadow: 10px 10px 0px rgba(124, 58, 237, 1); border-color: var(--accent-main); }
+    /* ================= FILTERS & FORMS ================= */
+    .filter-card {
+        background: var(--bg-card); border: 1px solid var(--border-color); padding: 1.5rem; border-radius: var(--radius-lg);
+        display: flex; gap: 1rem; align-items: center; flex-wrap: wrap; box-shadow: var(--shadow-sm);
+    }
+    .form-control-custom, .form-select-custom {
+        width: 100%; padding: 0.6rem 1rem; background: var(--bg-body); border: 1px solid var(--border-color);
+        color: var(--text-main); font-family: inherit; font-size: 0.9rem; outline: none; transition: border 0.2s;
+        border-radius: var(--radius-md); -webkit-appearance: none;
+    }
+    .form-control-custom:focus, .form-select-custom:focus { border-color: var(--blue-accent); background: var(--bg-card); box-shadow: 0 0 0 3px rgba(37, 99, 235, 0.1); }
 
-.hero-banner {
-  background: var(--bg-base); border: 2px solid var(--accent-main);
-  padding: 3rem; position: relative; overflow: hidden;
-  clip-path: polygon(0 0, calc(100% - 30px) 0, 100% 30px, 100% 100%, 0 100%);
-  box-shadow: 8px 8px 0px rgba(124, 58, 237, 0.15);
-}
-.hero-banner::after {
-    content: ''; position: absolute; top: 0; right: 0; width: 30px; height: 30px; background: var(--accent-main);
-}
-.hero-content { position: relative; z-index: 2; display: flex; justify-content: space-between; align-items: center; flex-wrap: wrap; gap: 1.5rem; }
+    /* ================= TABLES ================= */
+    .table-responsive { overflow-x: auto; border: 1px solid var(--border-color); border-radius: var(--radius-md); }
+    .custom-table { width: 100%; border-collapse: collapse; text-align: left; background: var(--bg-card); }
+    .custom-table th, .custom-table td { padding: 1rem 1.5rem; border-bottom: 1px solid var(--border-color); font-size: 0.9rem; vertical-align: middle;}
+    .custom-table th { background: var(--bg-body); color: var(--text-muted); font-weight: 600; font-size: 0.8rem; text-transform: uppercase; letter-spacing: 0.05em;}
+    .custom-table tbody tr:hover { background: #f8fafc; }
+    .custom-table tbody tr:last-child td { border-bottom: none; }
 
-/* ================= METADATA LABELS (TAGS) ================= */
-.sys-tag { 
-    font-family: var(--font-mono); font-size: 0.75rem; font-weight: 700; padding: 0.3rem 0.6rem; 
-    border: 1px solid var(--text-dark); color: var(--text-dark); text-transform: uppercase; display: inline-flex; align-items: center; gap: 0.4rem;
-}
-.sys-tag.accent { background: rgba(124, 58, 237, 0.08); border-color: var(--accent-main); color: var(--accent-main); }
-.sys-tag.danger { background: rgba(239, 68, 68, 0.08); border-color: #ef4444; color: #ef4444; }
-.sys-tag.warning { background: rgba(245, 158, 11, 0.08); border-color: #f59e0b; color: #f59e0b; }
-.sys-tag.info { background: rgba(59, 130, 246, 0.08); border-color: #3b82f6; color: #3b82f6; }
-.sys-tag.success { background: rgba(16, 185, 129, 0.05); border-color: #10b981; color: #10b981; }
+    /* Pagination */
+    .pagination { display: flex; list-style: none; gap: 0.5rem; margin: 0; padding: 0;}
+    .page-item .page-link { font-weight: 500; border: 1px solid var(--border-color); border-radius: var(--radius-md); color: var(--text-main); background: var(--bg-card); padding: 0.4rem 0.8rem; text-decoration: none; font-size: 0.85rem;}
+    .page-item.active .page-link { background: var(--blue-accent); color: #fff; border-color: var(--blue-accent); }
+    .page-item.disabled .page-link { opacity: 0.5; pointer-events: none; background: var(--bg-body);}
 
-/* ================= BUTTONS ================= */
-.btn-tech {
-    font-family: var(--font-mono); font-weight: 700; font-size: 0.85rem; text-transform: uppercase;
-    padding: 0.6rem 1.2rem; display: inline-flex; align-items: center; justify-content: center; gap: 0.5rem;
-    background: var(--bg-base); color: var(--text-dark); border: 2px solid var(--text-dark);
-    position: relative; overflow: hidden; z-index: 1; cursor: pointer; text-decoration: none;
-    clip-path: polygon(10px 0, 100% 0, 100% calc(100% - 10px), calc(100% - 10px) 100%, 0 100%, 0 10px);
-    transition: color 0.3s;
-}
-.btn-tech::before {
-    content: ''; position: absolute; top: 0; left: -100%; width: 100%; height: 100%;
-    background: var(--text-dark); z-index: -1; transition: left 0.3s cubic-bezier(0.7, 0, 0.3, 1);
-}
-.btn-tech:hover { color: #fff; border-color: var(--text-dark); }
-.btn-tech:hover::before { left: 0; }
+    /* ================= MODALS ================= */
+    .modal-overlay {
+      position: fixed; top: 0; left: 0; right: 0; bottom: 0;
+      background: rgba(15, 23, 42, 0.6); backdrop-filter: blur(2px);
+      display: none; align-items: center; justify-content: center; z-index: 1000; padding: 1rem;
+    }
+    .modal-content {
+      background: var(--bg-card); border: 1px solid var(--border-color);
+      max-width: 800px; width: 100%; max-height: 90vh; overflow-y: auto; padding: 2rem;
+      border-radius: var(--radius-lg); box-shadow: 0 10px 15px -3px rgba(0,0,0,0.1); }
+    .modal-header { display: flex; justify-content: space-between; align-items: center; margin-bottom: 1.5rem; padding-bottom: 1rem; border-bottom: 1px solid var(--border-color); }
+    .modal-header h3 { font-weight: 700; color: var(--navy-primary); font-size: 1.25rem; margin: 0;}
+    .close-btn { background: none; border: none; color: var(--text-muted); font-size: 1.5rem; cursor: pointer; padding: 0; line-height: 1;}
+    .close-btn:hover { color: var(--text-main); }
+    
+    #previewFrame { width: 100%; height: 60vh; border: 1px solid var(--border-color); border-radius: var(--radius-md); }
+    #previewImg { max-width: 100%; max-height: 60vh; display: block; margin: 0 auto; border: 1px solid var(--border-color); border-radius: var(--radius-md); }
 
-.btn-tech.primary { background: var(--accent-main); color: #fff; border-color: var(--accent-main); }
-.btn-tech.primary:hover { color: #fff; border-color: var(--text-dark);}
-.btn-tech.primary::before { background: var(--text-dark); }
-
-.btn-outline { background: transparent; border: 2px solid var(--text-dark); color: var(--text-dark); font-family: var(--font-mono); font-weight: 700; font-size: 0.75rem; padding: 0.4rem 0.8rem; cursor: pointer; transition: 0.2s; text-decoration: none; display: inline-flex; align-items: center;}
-.btn-outline:hover { background: var(--text-dark); color: #fff; }
-
-/* ================= KPI TELEMETRY GRID ================= */
-.telemetry-grid { 
-    display: grid; grid-template-columns: repeat(4, 1fr); 
-    border: 2px solid var(--text-dark); background: var(--bg-panel); margin-bottom: 2rem;
-}
-.tel-block { 
-    padding: 2rem 1.5rem; border-right: 2px solid var(--text-dark); 
-    display: flex; flex-direction: column; justify-content: center; align-items: flex-start;
-    transition: background 0.2s;
-}
-.tel-block:hover { background: var(--accent-bg); }
-.tel-block:last-child { border-right: none; }
-.tel-val { font-family: var(--font-head); font-size: 3rem; font-weight: 700; color: var(--text-dark); line-height: 1; margin-bottom: 0.5rem; }
-.tel-label { font-family: var(--font-mono); font-size: 0.75rem; font-weight: 700; text-transform: uppercase; color: var(--text-tech); margin-bottom: 0;}
-
-/* ================= FILTERS & FORMS ================= */
-.filter-card {
-    background: var(--bg-panel); border: 2px solid var(--text-dark); padding: 1.5rem; margin-bottom: 2rem;
-    display: flex; gap: 1rem; align-items: center; flex-wrap: wrap;
-}
-.form-control-custom, .form-select-custom {
-    width: 100%; padding: 0.75rem 1rem; background: var(--bg-base); border: 1px solid var(--text-tech);
-    color: var(--text-dark); font-family: var(--font-mono); font-size: 0.85rem; font-weight: 700; text-transform: uppercase; outline: none; transition: border 0.2s; border-radius: 0; -webkit-appearance: none;
-}
-.form-control-custom:focus, .form-select-custom:focus { border-color: var(--accent-main); border-width: 2px; padding: calc(0.75rem - 1px) calc(1rem - 1px); }
-
-/* ================= TABLES ================= */
-.table-responsive { overflow-x: auto; background: var(--bg-base); border: 2px solid var(--text-dark); margin-bottom: 1rem; }
-.custom-table { width: 100%; border-collapse: collapse; text-align: left; }
-.custom-table th, .custom-table td { padding: 1rem 1.5rem; border-bottom: 1px solid var(--text-light); font-size: 0.9rem; }
-.custom-table th { background: var(--bg-panel); color: var(--text-dark); font-family: var(--font-mono); font-weight: 700; font-size: 0.8rem; text-transform: uppercase; }
-.custom-table tbody tr { transition: background 0.2s ease; }
-.custom-table tbody tr:hover { background: rgba(124, 58, 237, 0.05); }
-.custom-table tbody tr:last-child td { border-bottom: none; }
-
-/* Pagination */
-.pagination { display: flex; list-style: none; gap: 0.5rem; margin: 0; padding: 0;}
-.page-item .page-link { font-family: var(--font-mono); font-weight: 700; border: 2px solid var(--text-dark); color: var(--text-dark); background: transparent; padding: 0.4rem 0.8rem; text-decoration: none;}
-.page-item.active .page-link { background: var(--accent-main); color: #fff; border-color: var(--accent-main); }
-.page-item.disabled .page-link { opacity: 0.5; pointer-events: none; }
-
-/* ================= ALERTS & MODALS ================= */
-.alert { font-family: var(--font-mono); font-size: 0.85rem; font-weight: 700; text-transform: uppercase; border: 2px solid transparent; padding: 1rem 1.5rem; display: flex; align-items: center; gap: 0.5rem;}
-.alert-danger { background: var(--bg-base); color: #ef4444; border-color: #ef4444; }
-.alert-warning { background: var(--bg-base); color: #f59e0b; border-color: #f59e0b; }
-.alert-info { background: var(--bg-base); color: #3b82f6; border-color: #3b82f6; }
-.alert-success { background: var(--bg-base); color: #10b981; border-color: #10b981; }
-
-.modal-overlay {
-  position: fixed; top: 0; left: 0; right: 0; bottom: 0;
-  background: rgba(15, 23, 42, 0.7); backdrop-filter: blur(4px);
-  display: none; align-items: center; justify-content: center; z-index: 1000; padding: 1rem;
-}
-.modal-content {
-  background: var(--bg-base); border: 2px solid var(--accent-main);
-  max-width: 600px; width: 100%; max-height: 90vh; overflow-y: auto; padding: 2.5rem;
-  box-shadow: 15px 15px 0px rgba(124, 58, 237, 0.3);
-  clip-path: polygon(0 0, calc(100% - 30px) 0, 100% 30px, 100% 100%, 30px 100%, 0 calc(100% - 30px));
-}
-.modal-header { display: flex; justify-content: space-between; align-items: center; margin-bottom: 1.5rem; padding-bottom: 1rem; border-bottom: 2px solid var(--text-dark); }
-.modal-header h3 { font-family: var(--font-head); font-weight: 700; color: var(--accent-main); text-transform: uppercase; font-size: 1.5rem; margin: 0;}
-.close-btn { background: none; border: none; color: var(--text-dark); font-size: 1.8rem; cursor: pointer; transition: color 0.2s; padding: 0; line-height: 1;}
-.close-btn:hover { color: var(--accent-main); }
-#previewFrame { width: 100%; height: 60vh; border: 2px solid var(--text-dark); }
-#previewImg { max-width: 100%; max-height: 60vh; display: block; margin: 0 auto; border: 2px solid var(--text-dark); }
-
-@media (max-width: 1024px) {
-    .telemetry-grid { grid-template-columns: repeat(2, 1fr); }
-    .tel-block:nth-child(2) { border-right: none; }
-    .tel-block:nth-child(1), .tel-block:nth-child(2) { border-bottom: 2px solid var(--text-dark); }
-    .sidebar { transform: translateX(-100%); transition: transform 0.3s; }
-    .sidebar.show { transform: translateX(0); }
-    .content-wrapper { margin-left: 0; }
-}
-@media (max-width: 600px) {
-    .telemetry-grid { grid-template-columns: 1fr; }
-    .tel-block { border-right: none !important; border-bottom: 2px solid var(--text-dark); }
-    .tel-block:last-child { border-bottom: none; }
-    .filter-card { flex-direction: column; align-items: stretch; }
-}
-</style>
+    @media (max-width: 1024px) {
+        .sidebar { transform: translateX(-100%); transition: transform 0.3s; }
+        .sidebar.show { transform: translateX(0); }
+        .content-wrapper { margin-left: 0; }
+    }
+    @media (max-width: 600px) {
+        .filter-card { flex-direction: column; align-items: stretch; }
+    }
+  </style>
 </head>
 <body>
 
@@ -421,7 +396,7 @@ a { text-decoration: none; color: inherit; }
     <!-- LEFT SIDEBAR -->
     <aside class="sidebar" id="erpSidebar">
         <div class="sidebar-header">
-            <a href="student_dashboard.php" class="brand-logo interactive">
+            <a href="student_dashboard.php" class="brand-logo">
                 <i class="fa-solid fa-graduation-cap"></i>
                 <span>Student Hub</span>
             </a>
@@ -429,31 +404,32 @@ a { text-decoration: none; color: inherit; }
 
         <div class="sidebar-menu">
             <div class="menu-label">Navigation</div>
-            <a href="student_dashboard.php" class="sidebar-link interactive">
-                <span>Dashboard</span>
+            <a href="student_dashboard.php" class="sidebar-link">
+                <i class="fa-solid fa-house"></i> <span>Dashboard</span>
             </a>
-            <a href="student_submit.php" class="sidebar-link interactive">
-                <span>Upload Assignment</span>
+            <a href="student_submit.php" class="sidebar-link">
+                <i class="fa-solid fa-cloud-arrow-up"></i> <span>Upload Assignment</span>
             </a>
-            <a href="student_history.php" class="sidebar-link interactive active">
-                <span>Submission History</span>
+            <a href="student_history.php" class="sidebar-link active">
+                <i class="fa-solid fa-clock-rotate-left"></i> <span>Submission History</span>
             </a>
 
             <div class="menu-label">Account</div>
-            <a href="auth/logout.php" class="sidebar-link interactive" style="color: #ef4444;">
-                <span>Logout</span>
+            <a href="auth/logout.php" class="sidebar-link" style="color: var(--danger);">
+                <i class="fa-solid fa-power-off"></i> <span>Logout</span>
             </a>
 
-            <div class="menu-label" style="margin-top: 2rem;">
+            <!-- Joined Classes Section -->
+            <div class="menu-label" style="margin-top: 1rem;">
                 <span>Joined Classes</span>
-                <span class="sys-tag accent" style="margin: 0;"><?= count($myClasses) ?></span>
+                <span class="sys-tag accent" style="margin: 0; padding: 0.1rem 0.5rem;"><?= count($myClasses) ?></span>
             </div>
             <div style="padding: 0 1rem;">
                 <?php if (empty($myClasses)): ?>
-                    <div style="font-family: var(--font-mono); font-size: 0.75rem; color: var(--text-tech);">No classes joined yet.</div>
+                    <div style="font-size: 0.8rem; color: var(--text-muted);">No classes joined yet.</div>
                 <?php else: ?>
                     <?php foreach ($myClasses as $c): ?>
-                        <div class="joined-class-item interactive">
+                        <div class="joined-class-item">
                             <strong title="<?= e($c['class_name']) ?>"><?= e($c['class_name']) ?></strong>
                             <?php if (!empty($c['subject_code'])): ?>
                                 <span><?= e($c['subject_code']) ?></span><br>
@@ -468,12 +444,10 @@ a { text-decoration: none; color: inherit; }
         </div>
 
         <div class="sidebar-user">
-            <div style="display: flex; align-items: center; gap: 0.75rem;">
-                <div class="avatar"><?php echo strtoupper(substr($studentName, 0, 1)); ?></div>
-                <div>
-                    <div style="font-family: var(--font-mono); font-weight: 700; font-size: 0.85rem; color: var(--text-dark);"><?php echo e($studentName); ?></div>
-                    <div style="font-family: var(--font-mono); font-size: 0.65rem; color: var(--accent-main); text-transform: uppercase; font-weight: 700;">Role: <?php echo e($role); ?></div>
-                </div>
+            <div class="avatar"><?php echo strtoupper(substr($studentName, 0, 1)); ?></div>
+            <div>
+                <div style="font-weight: 600; font-size: 0.85rem; color: var(--navy-primary);"><?php echo e($studentName); ?></div>
+                <div style="font-size: 0.75rem; color: var(--text-muted); font-weight: 500;">Role: <?php echo ucfirst(e($role)); ?></div>
             </div>
         </div>
     </aside>
@@ -482,11 +456,11 @@ a { text-decoration: none; color: inherit; }
     <div class="content-wrapper">
         <header class="top-navbar">
             <div class="d-flex align-items-center gap-3">
-                <button class="btn btn-outline interactive d-lg-none" id="sidebarToggle" style="padding: 0.4rem 0.8rem;">Menu</button>
-                <h3 style="color: var(--accent-main);">Submission History</h3>
+                <button class="btn btn-outline d-lg-none" id="sidebarToggle" style="padding: 0.4rem 0.8rem;"><i class="fa-solid fa-bars"></i></button>
+                <h3>Submission History</h3>
             </div>
             <div style="display: flex; align-items: center; gap: 1rem;">
-                <a href="student_submit.php" class="btn-tech primary interactive">
+                <a href="student_submit.php" class="btn btn-primary">
                     <i class="fa-solid fa-cloud-arrow-up"></i> Upload New
                 </a>
             </div>
@@ -495,11 +469,11 @@ a { text-decoration: none; color: inherit; }
         <main class="main-content">
 
             <!-- Hero Header -->
-            <div class="hero-banner interactive">
+            <div class="hero-banner">
                 <div class="hero-content">
                     <div>
-                        <h1 style="font-family: var(--font-head); font-size: 2.2rem; margin-bottom: 0.5rem; font-weight: 700; text-transform: uppercase;">Submission Log</h1>
-                        <p style="color: var(--text-tech); font-family: var(--font-mono); font-size: 0.95rem; margin-bottom: 0;">
+                        <h1 class="hero-title">Submission Log</h1>
+                        <p class="hero-subtitle">
                             Track all submitted activities, view earned scores, and preview uploaded files.
                         </p>
                     </div>
@@ -507,23 +481,23 @@ a { text-decoration: none; color: inherit; }
             </div>
 
             <!-- KPI Metrics Grid -->
-            <div class="telemetry-grid interactive" style="grid-template-columns: repeat(3, 1fr);">
-                <div class="tel-block">
-                    <div class="tel-val" style="color: var(--text-dark);"><?= count($history) ?></div>
-                    <div class="tel-label">Total Submissions</div>
+            <div class="stats-grid" style="grid-template-columns: repeat(auto-fit, minmax(150px, 1fr));">
+                <div class="stat-block">
+                    <div class="stat-val" style="color: var(--navy-primary);"><?= count($history) ?></div>
+                    <div class="stat-label">Total Submissions</div>
                 </div>
-                <div class="tel-block">
-                    <div class="tel-val" style="color: #10b981;"><?= $totalEvaluated ?></div>
-                    <div class="tel-label">Graded</div>
+                <div class="stat-block">
+                    <div class="stat-val" style="color: var(--success);"><?= $totalEvaluated ?></div>
+                    <div class="stat-label">Graded</div>
                 </div>
-                <div class="tel-block">
-                    <div class="tel-val" style="color: #3b82f6;"><?= $totalReview ?></div>
-                    <div class="tel-label">Under Review</div>
+                <div class="stat-block">
+                    <div class="stat-val" style="color: var(--blue-accent);"><?= $totalReview ?></div>
+                    <div class="stat-label">Under Review</div>
                 </div>
             </div>
 
             <!-- Control Toolbar & Filters -->
-            <div class="filter-card interactive">
+            <div class="filter-card">
                 <div style="flex: 2; min-width: 250px;">
                     <input type="text" id="searchInput" class="form-control-custom" placeholder="Search activity title or subject...">
                 </div>
@@ -543,14 +517,14 @@ a { text-decoration: none; color: inherit; }
                     </select>
                 </div>
                 <div>
-                    <button id="resetFiltersBtn" class="btn-tech interactive" style="margin:0;">
-                        Reset
+                    <button id="resetFiltersBtn" class="btn btn-outline" style="margin:0;">
+                        Reset Filters
                     </button>
                 </div>
             </div>
 
             <!-- Submission History Table -->
-            <div class="table-responsive interactive">
+            <div class="table-responsive">
                 <table class="custom-table" id="historyTable">
                     <thead>
                         <tr>
@@ -566,7 +540,7 @@ a { text-decoration: none; color: inherit; }
                     <tbody id="historyTableBody">
                         <?php if (!$history): ?>
                             <tr class="js-empty">
-                                <td colspan="7" style="text-align: center; padding: 3rem; color: var(--text-tech); font-family: var(--font-mono); font-weight: 700;">
+                                <td colspan="7" style="text-align: center; padding: 3rem; color: var(--text-muted); font-weight: 500;">
                                     No activity submissions recorded yet.
                                 </td>
                             </tr>
@@ -581,30 +555,36 @@ a { text-decoration: none; color: inherit; }
                                 data-title="<?= e(mb_strtolower($h['title'] . ' ' . $h['subject_code'] . ' ' . ($h['original_filename'] ?? ''))) ?>">
                                 
                                 <td>
-                                    <strong style="font-family: var(--font-head); font-size: 1.05rem; text-transform: uppercase; color: var(--text-dark); display: block; margin-bottom: 0.2rem;"><?= e($h['title']) ?></strong>
-                                    <span class="sys-tag accent" style="font-size: 0.65rem; margin:0;">Unit <?= e($h['unit']) ?></span>
+                                    <strong style="font-size: 0.95rem; color: var(--text-main); display: block; margin-bottom: 0.3rem;"><?= e($h['title']) ?></strong>
+                                    <span class="sys-tag accent" style="font-size: 0.7rem; margin:0;">Unit <?= e($h['unit']) ?></span>
                                 </td>
                                 
                                 <td>
-                                    <strong style="font-family: var(--font-mono); color: var(--text-dark); text-transform: uppercase;"><?= e($h['subject_code']) ?></strong>
+                                    <strong style="color: var(--text-main);"><?= e($h['subject_code']) ?></strong>
                                 </td>
                                 
                                 <td>
-                                    <div style="font-family: var(--font-mono); font-size: 0.85rem; color: var(--accent-main); font-weight: 700; max-width: 200px; white-space: nowrap; overflow: hidden; text-overflow: ellipsis;" title="<?= e($h['original_filename']) ?>">
-                                        <?= e($h['original_filename']) ?>
+                                    <div style="font-size: 0.85rem; color: var(--blue-accent); font-weight: 600; max-width: 200px; white-space: nowrap; overflow: hidden; text-overflow: ellipsis;" title="<?= e($h['original_filename']) ?>">
+                                        <i class="fa-regular fa-file-lines me-1"></i> <?= e($h['original_filename']) ?>
                                     </div>
                                 </td>
                                 
-                                <td style="font-family: var(--font-mono); font-size: 0.85rem; color: var(--text-tech);">
-                                    <strong style="color: var(--text-dark);"><?= fmtDateTime($h['submission_date']) ?></strong>
+                                <td style="font-size: 0.85rem; color: var(--text-muted);">
+                                    <?php if ($h['submission_date']): ?>
+                                        <strong style="color: var(--text-main); font-weight: 500;"><?= fmtDateTime($h['submission_date']) ?></strong>
+                                    <?php else: ?>
+                                        Due: <?= fmtDateTime($h['due_date']) ?>
+                                    <?php endif; ?>
                                 </td>
                                 
                                 <td>
                                     <?php if ($h['marks'] !== null): ?>
-                                        <strong style="font-family: var(--font-mono); font-size: 1.1rem; color: #10b981;"><?= e($h['marks']) ?></strong>
-                                        <span style="font-family: var(--font-mono); font-size: 0.75rem; color: var(--text-tech);">/ <?= e($h['max_marks']) ?></span>
+                                        <strong style="font-size: 1.1rem; color: var(--success);"><?= e($h['marks']) ?></strong>
+                                        <span style="font-size: 0.75rem; color: var(--text-muted);">/ <?= e($h['max_marks']) ?></span>
+                                    <?php elseif ($displayStatus === 'Under Review'): ?>
+                                        <span class="sys-tag info" style="margin:0;">Under Evaluation</span>
                                     <?php else: ?>
-                                        <span class="sys-tag info">Under Evaluation</span>
+                                        <span style="color: var(--text-muted);">—</span>
                                     <?php endif; ?>
                                 </td>
                                 
@@ -614,14 +594,18 @@ a { text-decoration: none; color: inherit; }
                                 
                                 <td style="text-align: center;">
                                     <div style="display: flex; gap: 0.5rem; justify-content: center;">
-                                        <button type="button" class="btn-outline interactive" style="padding: 0.4rem 0.8rem; font-size: 0.75rem;" title="View Document Preview"
-                                                onclick='openPreview(<?= (int)$h['id'] ?>, <?= jsAttr($h['file_type']) ?>, <?= jsAttr($h['original_filename']) ?>)'>
-                                            View
-                                        </button>
-                                        <a class="btn-tech primary interactive" style="padding: 0.4rem 0.8rem; font-size: 0.75rem; margin: 0;" title="Download Original File"
-                                           href="student_history.php?action=download&id=<?= (int)$h['id'] ?>">
-                                            DL
-                                        </a>
+                                        <?php if (!empty($h['id'])): ?>
+                                            <button type="button" class="btn btn-outline" style="padding: 0.3rem 0.6rem; font-size: 0.8rem;" title="View Document Preview"
+                                                    onclick='openPreview(<?= (int)$h['id'] ?>, <?= jsAttr($h['file_type']) ?>, <?= jsAttr($h['original_filename']) ?>)'>
+                                                <i class="fa-regular fa-eye"></i> View
+                                            </button>
+                                            <a class="btn btn-primary" style="padding: 0.3rem 0.6rem; font-size: 0.8rem; margin: 0;" title="Download Original File"
+                                               href="student_history.php?action=download&id=<?= (int)$h['id'] ?>">
+                                                <i class="fa-solid fa-download"></i> DL
+                                            </a>
+                                        <?php else: ?>
+                                            <span class="sys-tag" style="background: transparent; color: var(--text-muted); border-color: var(--border-color); margin:0;">Closed</span>
+                                        <?php endif; ?>
                                     </div>
                                 </td>
                             </tr>
@@ -632,7 +616,7 @@ a { text-decoration: none; color: inherit; }
 
             <!-- Pagination & Summary Footer -->
             <div style="display: flex; justify-content: space-between; align-items: center; flex-wrap: wrap; gap: 1rem;">
-                <div style="font-family: var(--font-mono); font-size: 0.85rem; font-weight: 700; color: var(--text-tech); text-transform: uppercase;" id="resultsSummary">Showing submissions</div>
+                <div style="font-size: 0.85rem; font-weight: 600; color: var(--text-muted);" id="resultsSummary">Showing submissions</div>
                 <nav aria-label="Page navigation">
                     <ul class="pagination" id="historyPagination"></ul>
                 </nav>
@@ -647,21 +631,21 @@ a { text-decoration: none; color: inherit; }
     <div class="modal-content">
         <div class="modal-header">
             <h3 id="previewTitle">Document Preview</h3>
-            <button class="close-btn interactive" id="closePreviewModal">&times;</button>
+            <button class="close-btn" id="closePreviewModal">&times;</button>
         </div>
         <div style="padding-bottom: 1.5rem;">
             <iframe id="previewFrame" class="d-none"></iframe>
             <img id="previewImg" class="d-none" alt="Submitted file preview">
-            <div id="previewUnsupported" class="d-none" style="text-align: center; padding: 4rem 2rem; border: 1px dashed var(--text-dark);">
-                <i class="fa-solid fa-file-excel" style="font-size: 3rem; color: var(--text-tech); margin-bottom: 1rem;"></i>
-                <h4 style="font-family: var(--font-head); font-weight: 700; text-transform: uppercase; margin-bottom: 0.5rem;">Preview Unavailable</h4>
-                <p style="font-family: var(--font-mono); font-size: 0.85rem; color: var(--text-tech);">Please download the file using the button below to view its contents.</p>
+            <div id="previewUnsupported" class="d-none" style="text-align: center; padding: 3rem 2rem;">
+                <i class="fa-solid fa-file-circle-xmark" style="font-size: 3rem; color: var(--border-color); margin-bottom: 1rem;"></i>
+                <h4 style="font-weight: 600; color: var(--navy-primary); margin-bottom: 0.5rem;">Preview Unavailable</h4>
+                <p style="font-size: 0.9rem; color: var(--text-muted);">Please download the file using the button below to view its contents.</p>
             </div>
         </div>
-        <div style="display: flex; justify-content: flex-end; gap: 1rem; border-top: 2px solid var(--text-dark); padding-top: 1.5rem;">
-            <button type="button" class="btn-outline interactive" id="cancelPreviewModal">Close</button>
-            <a class="btn-tech primary interactive" id="previewDownloadBtn" href="#" style="margin: 0;">
-                Download File
+        <div style="display: flex; justify-content: flex-end; gap: 1rem; border-top: 1px solid var(--border-color); padding-top: 1.5rem;">
+            <button type="button" class="btn btn-outline" id="cancelPreviewModal">Close</button>
+            <a class="btn btn-primary" id="previewDownloadBtn" href="#" style="margin: 0;">
+                <i class="fa-solid fa-download"></i> Download File
             </a>
         </div>
     </div>
@@ -670,18 +654,7 @@ a { text-decoration: none; color: inherit; }
 <script>
 document.addEventListener('DOMContentLoaded', () => {
 
-    // 1. Cursor Hover interactions
-    const attachCursorHover = () => {
-        document.querySelectorAll('.interactive, button, a, input, select, textarea').forEach(el => {
-            el.addEventListener("mouseenter", () => document.body.classList.add("hovering"));
-            el.addEventListener("mouseleave", () => document.body.classList.remove("hovering"));
-        });
-    };
-    attachCursorHover();
-    const observer = new MutationObserver(attachCursorHover);
-    observer.observe(document.body, { childList: true, subtree: true });
-
-    // 2. Table Search, Filter & Pagination Logic
+    // 1. Table Search, Filter & Pagination Logic
     const tbody = document.getElementById('historyTableBody');
     const allRows = Array.from(tbody.querySelectorAll('tr[data-subject]'));
     const pager = document.getElementById('historyPagination');
@@ -724,7 +697,7 @@ document.addEventListener('DOMContentLoaded', () => {
                 emptyRow = document.createElement('tr');
                 emptyRow.className = 'js-empty';
                 emptyRow.innerHTML = `
-                    <td colspan="7" style="text-align: center; padding: 3rem; color: var(--text-tech); font-family: var(--font-mono); font-weight: 700;">
+                    <td colspan="7" style="text-align: center; padding: 3rem; color: var(--text-muted); font-weight: 500;">
                         No submissions found matching your filters.
                     </td>`;
                 tbody.appendChild(emptyRow);
@@ -737,19 +710,18 @@ document.addEventListener('DOMContentLoaded', () => {
         // Render Pagination Links
         pager.innerHTML = '';
         if (totalPages > 1) {
-            let html = `<li class="page-item ${currentPage === 1 ? 'disabled' : 'interactive'}">
-                            <a class="page-link" href="#" data-p="${currentPage - 1}">PREV</a>
+            let html = `<li class="page-item ${currentPage === 1 ? 'disabled' : ''}">
+                            <a class="page-link" href="#" data-p="${currentPage - 1}">Prev</a>
                         </li>`;
             for (let p = 1; p <= totalPages; p++) {
-                html += `<li class="page-item ${p === currentPage ? 'active' : 'interactive'}">
+                html += `<li class="page-item ${p === currentPage ? 'active' : ''}">
                             <a class="page-link" href="#" data-p="${p}">${p}</a>
                          </li>`;
             }
-            html += `<li class="page-item ${currentPage === totalPages ? 'disabled' : 'interactive'}">
-                        <a class="page-link" href="#" data-p="${currentPage + 1}">NEXT</a>
+            html += `<li class="page-item ${currentPage === totalPages ? 'disabled' : ''}">
+                        <a class="page-link" href="#" data-p="${currentPage + 1}">Next</a>
                       </li>`;
             pager.innerHTML = html;
-            attachCursorHover(); // Re-attach cursor to new pagination buttons
         }
 
         const start = rows.length ? startIdx + 1 : 0;
@@ -779,7 +751,7 @@ document.addEventListener('DOMContentLoaded', () => {
 
     renderTable();
 
-    // 3. Mobile Sidebar Toggle
+    // 2. Mobile Sidebar Toggle
     const sidebarToggle = document.getElementById('sidebarToggle');
     const erpSidebar = document.getElementById('erpSidebar');
     if (sidebarToggle && erpSidebar) {
@@ -789,7 +761,7 @@ document.addEventListener('DOMContentLoaded', () => {
     }
 });
 
-// 4. Custom Modal Preview Logic
+// 3. Custom Modal Preview Logic
 const previewModalWrapper = document.getElementById('previewModalWrapper');
 const closePreviewBtn = document.getElementById('closePreviewModal');
 const cancelPreviewBtn = document.getElementById('cancelPreviewModal');

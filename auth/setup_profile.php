@@ -40,8 +40,6 @@ $success = "";
 if ($_SERVER["REQUEST_METHOD"] === "POST") {
     $new_password     = trim($_POST['new_password']);
     $confirm_password = trim($_POST['confirm_password']);
-    $security_q       = trim($_POST['security_question']);
-    $security_a       = trim($_POST['security_answer']);
     $phone            = trim($_POST['phone'] ?? '');
 
     $roll_no  = (strtolower($actual_role) === 'student') ? trim($_POST['roll_no'] ?? '') : NULL;
@@ -51,7 +49,7 @@ if ($_SERVER["REQUEST_METHOD"] === "POST") {
     $fac_year = (strtolower($actual_role) === 'faculty') ? trim($_POST['fac_academic_year'] ?? '') : NULL;
     $fac_subj = (strtolower($actual_role) === 'faculty') ? trim($_POST['fac_subject'] ?? '') : NULL;
 
-    $isValid = !empty($new_password) && !empty($confirm_password) && !empty($security_q) && !empty($security_a);
+    $isValid = !empty($new_password) && !empty($confirm_password);
     if (strtolower($actual_role) === 'student') {
         if (empty($roll_no)) {
             $isValid = false;
@@ -68,8 +66,8 @@ if ($_SERVER["REQUEST_METHOD"] === "POST") {
             if (strlen($new_password) >= 6) {
                 $hashed_password = password_hash($new_password, PASSWORD_BCRYPT);
 
-                $updateStmt = $conn->prepare("UPDATE users SET password = ?, security_question = ?, security_answer = ?, roll_no = ?, phone = ?, is_first_login = 0 WHERE user_id = ?");
-                $updateStmt->bind_param("sssssi", $hashed_password, $security_q, $security_a, $roll_no, $phone, $user_id);
+                $updateStmt = $conn->prepare("UPDATE users SET password = ?, roll_no = ?, phone = ?, is_first_login = 0 WHERE user_id = ?");
+                $updateStmt->bind_param("sssi", $hashed_password, $roll_no, $phone, $user_id);
 
                 if ($updateStmt->execute()) {
                     // If Faculty, auto-seed the standard 4 teaching assignments (Divisions A, B, C, D)
@@ -141,218 +139,202 @@ if ($_SERVER["REQUEST_METHOD"] === "POST") {
     <link href="https://cdn.jsdelivr.net/npm/bootstrap@5.3.0/dist/css/bootstrap.min.css" rel="stylesheet">
     <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.4.0/css/all.min.css">
     
-    <!-- Professional Fonts -->
-    <link href="https://fonts.googleapis.com/css2?family=Space+Grotesk:wght@400;600;700&family=JetBrains+Mono:wght@100;400;700;800&family=Inter:wght@400;500;600&display=swap" rel="stylesheet">
+    <!-- Clean Academic Fonts -->
+    <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700&display=swap" rel="stylesheet">
 
     <style>
         :root {
-            --bg-base: #ffffff;
-            --text-dark: #0f172a; 
-            --text-tech: #475569; 
-            --text-light: #94a3b8;
+            /* Traditional Academic Color Palette */
+            --bg-body: #f8fafc;
+            --bg-card: #ffffff;
+            --navy-primary: #0f172a;
+            --blue-accent: #2563eb;
+            --text-main: #1e293b;
+            --text-muted: #64748b;
+            --border-color: #e2e8f0;
             
-            --accent-main: #7c3aed; 
-            --accent-glow: #a855f7; 
+            --radius-md: 8px;
+            --radius-lg: 12px;
+            --shadow-md: 0 4px 6px -1px rgba(0,0,0,0.1), 0 2px 4px -1px rgba(0,0,0,0.06);
             
-            --grid-size: 40px;
-            --border-harsh: 2px solid var(--text-dark);
-            
-            --font-head: 'Space Grotesk', sans-serif;
-            --font-mono: 'JetBrains Mono', monospace;
-            --font-body: 'Inter', sans-serif;
+            --font-main: 'Inter', system-ui, -apple-system, sans-serif;
         }
 
         * { margin: 0; padding: 0; box-sizing: border-box; }
 
         body {
-            background-color: var(--bg-base);
-            /* Architectural Blueprint Grid */
-            background-image: 
-                linear-gradient(rgba(124, 58, 237, 0.08) 1px, transparent 1px),
-                linear-gradient(90deg, rgba(124, 58, 237, 0.08) 1px, transparent 1px);
-            background-size: var(--grid-size) var(--grid-size);
-            background-position: center center;
-            color: var(--text-dark);
-            font-family: var(--font-body);
+            background-color: var(--bg-body);
+            color: var(--text-main);
+            font-family: var(--font-main);
             min-height: 100vh;
             display: flex;
             align-items: center;
             justify-content: center;
             padding: 40px 20px;
-            position: relative;
-            overflow-x: hidden;
-            
-            /* PIXELATED PURPLE CUSTOM CURSOR */
-            cursor: url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' width='32' height='32' viewBox='0 0 32 32' shape-rendering='crispEdges'%3E%3Cpath d='M4 4v20l5-5 4 8 4-2-4-8h8L4 4z' fill='%237c3aed' stroke='white' stroke-width='2'/%3E%3C/svg%3E") 4 4, auto;
             -webkit-font-smoothing: antialiased;
         }
 
-        /* PIXELATED HOVER CURSOR */
-        a, button, input, select, .interactive {
-            cursor: url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' width='32' height='32' viewBox='0 0 32 32' shape-rendering='crispEdges'%3E%3Cpath d='M4 4v20l5-5 4 8 4-2-4-8h8L4 4z' fill='%23a855f7' stroke='%230f172a' stroke-width='2.5'/%3E%3C/svg%3E") 4 4, pointer !important;
-        }
-
-        ::selection { background: var(--accent-main); color: #fff; }
+        a { text-decoration: none; color: inherit; }
 
         /* ================= SETUP CARD ================= */
         .setup-card {
-            background: rgba(255, 255, 255, 0.95);
-            border: var(--border-harsh);
+            background: var(--bg-card);
+            border: 1px solid var(--border-color);
             width: 100%;
             max-width: 650px;
-            z-index: 5;
+            border-radius: var(--radius-lg);
             padding: 3rem;
-            position: relative;
-            backdrop-filter: blur(10px);
-            box-shadow: 15px 15px 0px rgba(124, 58, 237, 0.15);
-            clip-path: polygon(0 0, calc(100% - 30px) 0, 100% 30px, 100% 100%, 30px 100%, 0 calc(100% - 30px));
-            animation: fadeUp 0.6s cubic-bezier(0.16, 1, 0.3, 1) forwards;
-        }
-        .setup-card::before {
-            content: ''; position: absolute; top: 0; left: 0; width: 40px; height: 40px;
-            border-right: 2px solid var(--text-dark); border-bottom: 2px solid var(--text-dark);
+            box-shadow: var(--shadow-md);
         }
 
-        @keyframes fadeUp {
-            from { opacity: 0; transform: translateY(30px); }
-            to { opacity: 1; transform: translateY(0); }
+        .card-header {
+            text-align: center;
+            margin-bottom: 2rem;
         }
 
-        .sys-tag {
-            font-family: var(--font-mono);
-            font-size: 0.75rem;
-            font-weight: 700;
-            text-transform: uppercase;
-            letter-spacing: 0.15em;
-            color: var(--accent-main);
-            margin-bottom: 0.75rem;
+        .sys-icon {
             display: inline-flex;
             align-items: center;
-            gap: 0.5rem;
-            background: rgba(124, 58, 237, 0.08);
-            padding: 0.3rem 0.8rem;
-            border: 1px solid rgba(124, 58, 237, 0.2);
+            justify-content: center;
+            width: 56px;
+            height: 56px;
+            background: #eff6ff;
+            color: var(--blue-accent);
+            border-radius: 50%;
+            font-size: 1.5rem;
+            margin-bottom: 1rem;
         }
 
         .card-title {
-            font-family: var(--font-head);
-            font-size: 2rem;
+            font-size: 1.75rem;
             font-weight: 700;
-            color: var(--text-dark);
-            text-transform: uppercase;
-            letter-spacing: -0.02em;
+            color: var(--navy-primary);
             margin-bottom: 0.5rem;
-            line-height: 1.1;
         }
 
         .card-subtitle {
-            font-family: var(--font-body);
-            color: var(--text-tech);
-            font-size: 0.9rem;
+            color: var(--text-muted);
+            font-size: 0.95rem;
             line-height: 1.5;
-            margin-bottom: 2.5rem;
-            border-left: 2px solid var(--accent-main);
-            padding-left: 1rem;
         }
 
         /* ================= FORM ELEMENTS ================= */
         .section-divider {
-            font-family: var(--font-mono);
-            font-size: 0.95rem;
-            font-weight: 700;
-            color: var(--text-dark);
-            border-bottom: 2px solid var(--text-dark);
+            font-size: 1rem;
+            font-weight: 600;
+            color: var(--navy-primary);
+            border-bottom: 2px solid var(--border-color);
             padding-bottom: 8px;
             margin-bottom: 20px;
-            margin-top: 10px;
+            margin-top: 1.5rem;
             display: flex;
             align-items: center;
             gap: 8px;
-            text-transform: uppercase;
         }
-        .section-divider i { color: var(--accent-main); }
+        .section-divider i { color: var(--blue-accent); }
 
         .form-group { margin-bottom: 1.25rem; }
         
-        .custom-label {
-            font-family: var(--font-mono);
-            font-size: 0.8rem;
-            font-weight: 700;
-            text-transform: uppercase;
-            color: var(--text-dark);
-            margin-bottom: 6px;
+        .form-label {
+            font-size: 0.85rem;
+            font-weight: 600;
+            color: var(--text-main);
+            margin-bottom: 0.4rem;
             display: block;
         }
 
         .form-control-custom, .form-select-custom {
-            background-color: var(--bg-base);
-            border: 1px solid var(--text-tech);
-            color: var(--text-dark);
-            padding: 12px 16px;
-            font-family: var(--font-body);
+            background-color: var(--bg-body);
+            border: 1px solid var(--border-color);
+            color: var(--text-main);
+            padding: 0.75rem 1rem;
+            font-family: var(--font-main);
             font-size: 0.95rem;
             width: 100%;
-            transition: all 0.3s ease;
-            border-radius: 0;
+            transition: all 0.2s ease;
+            border-radius: var(--radius-md);
             -webkit-appearance: none;
         }
         
-        .form-control-custom:focus, .form-select-custom:focus {
-            border-color: var(--text-dark);
-            border-width: 2px;
-            outline: none;
-            padding: 11px 15px; /* Offset border width */
+        .form-select-custom {
+            background-image: url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' width='16' height='16' viewBox='0 0 24 24' fill='none' stroke='%2364748b' stroke-width='2' stroke-linecap='round' stroke-linejoin='round'%3E%3Cpolyline points='6 9 12 15 18 9'%3E%3C/polyline%3E%3C/svg%3E");
+            background-repeat: no-repeat;
+            background-position: right 1rem center;
+            background-size: 1em;
+            padding-right: 2.5rem;
         }
-        .form-control-custom::placeholder { color: var(--text-light); font-family: var(--font-mono); font-size: 0.85rem; }
+        
+        .form-control-custom:focus, .form-select-custom:focus {
+            border-color: var(--blue-accent);
+            background-color: var(--bg-card);
+            outline: none;
+            box-shadow: 0 0 0 3px rgba(37, 99, 235, 0.1);
+        }
+        .form-control-custom::placeholder { color: #94a3b8; font-size: 0.9rem; }
 
         /* ================= BUTTON ================= */
-        .btn-tech {
-            font-family: var(--font-mono); font-weight: 700; font-size: 1rem; text-transform: uppercase;
-            padding: 1.2rem; display: inline-flex; align-items: center; justify-content: center; gap: 0.75rem;
-            background: var(--text-dark); color: #fff; border: 2px solid var(--text-dark);
-            position: relative; overflow: hidden; z-index: 1; cursor: pointer;
-            clip-path: polygon(15px 0, 100% 0, 100% calc(100% - 15px), calc(100% - 15px) 100%, 0 100%, 0 15px);
-            transition: color 0.3s; width: 100%; margin-top: 1rem;
+        .btn-primary {
+            font-family: var(--font-main);
+            font-weight: 600;
+            font-size: 1rem;
+            padding: 0.85rem 1.5rem;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            gap: 0.5rem;
+            background: var(--blue-accent);
+            color: #fff;
+            border: none;
+            border-radius: var(--radius-md);
+            width: 100%;
+            cursor: pointer;
+            transition: background 0.2s ease, transform 0.1s ease;
+            margin-top: 2rem;
         }
-        .btn-tech::before {
-            content: ''; position: absolute; top: 0; left: -100%; width: 100%; height: 100%;
-            background: var(--accent-main); z-index: -1; transition: left 0.3s cubic-bezier(0.7, 0, 0.3, 1);
-        }
-        .btn-tech:hover { color: #fff; border-color: var(--accent-main); }
-        .btn-tech:hover::before { left: 0; }
-        .btn-tech i { transition: transform 0.3s; }
-        .btn-tech:hover i { transform: translateX(5px); }
 
-        /* Alerts styling */
+        .btn-primary:hover {
+            background: #1d4ed8;
+        }
+
+        .btn-primary:active {
+            transform: scale(0.98);
+        }
+
+        /* ================= ALERTS ================= */
         .alert { 
-            font-family: var(--font-mono); font-size: 0.85rem; font-weight: 700; text-transform: uppercase; 
-            border: 2px solid transparent; border-radius: 0; padding: 1rem 1.2rem; margin-bottom: 2rem; 
-            display: flex; align-items: center; gap: 0.75rem;
+            font-size: 0.9rem; 
+            font-weight: 500; 
+            border-radius: var(--radius-md); 
+            padding: 1rem 1.25rem; 
+            margin-bottom: 2rem; 
+            display: flex; 
+            align-items: center; 
+            gap: 0.75rem;
         }
-        .alert-danger { background: rgba(239, 68, 68, 0.05); color: #ef4444; border-color: #ef4444; }
-        .alert-success { background: rgba(16, 185, 129, 0.05); color: #10b981; border-color: #10b981; }
+        .alert-danger { background: #fee2e2; color: #991b1b; border: 1px solid #fecaca; }
+        .alert-success { background: #dcfce7; color: #166534; border: 1px solid #bbf7d0; }
 
-        @media (max-width: 768px) {
-            .setup-card { padding: 2rem; clip-path: none; box-shadow: 8px 8px 0px rgba(124, 58, 237, 0.15); border-radius: 0;}
-            .card-title { font-size: 1.6rem; }
+        @media (max-width: 600px) {
+            .setup-card { padding: 2rem 1.5rem; }
+            .card-title { font-size: 1.5rem; }
         }
     </style>
 </head>
 <body>
 
     <div class="setup-card">
-        <div class="mb-4">
-            <div class="sys-tag"><i class="fa-solid fa-user-shield"></i> SYS.INIT // ACCOUNT SETUP</div>
+        <div class="card-header">
+            <div class="sys-icon"><i class="fa-solid fa-user-shield"></i></div>
             <h3 class="card-title"><?php echo htmlspecialchars($actual_role); ?> Setup</h3>
-            <p class="card-subtitle">Welcome, <strong><?php echo htmlspecialchars($userData['name']); ?></strong> (<?php echo htmlspecialchars($userData['username']); ?>). Please complete your profile to continue.</p>
+            <p class="card-subtitle">Welcome, <strong><?php echo htmlspecialchars($userData['name']); ?></strong>. Please complete your profile to continue.</p>
         </div>
 
         <?php if (!empty($error)): ?>
-            <div class="alert alert-danger"><i class="fa-solid fa-triangle-exclamation"></i> ERR // <?php echo htmlspecialchars($error); ?></div>
+            <div class="alert alert-danger"><i class="fa-solid fa-triangle-exclamation"></i> <?php echo htmlspecialchars($error); ?></div>
         <?php endif; ?>
 
         <?php if (!empty($success)): ?>
-            <div class="alert alert-success"><i class="fa-solid fa-circle-check"></i> SYS // <?php echo htmlspecialchars($success); ?></div>
+            <div class="alert alert-success"><i class="fa-solid fa-circle-check"></i> <?php echo htmlspecialchars($success); ?></div>
         <?php endif; ?>
 
         <form method="POST" action="setup_profile.php" id="setupForm">
@@ -362,33 +344,16 @@ if ($_SERVER["REQUEST_METHOD"] === "POST") {
             
             <div class="row">
                 <div class="col-md-6 form-group">
-                    <label class="custom-label">New Password *</label>
-                    <input type="password" name="new_password" class="form-control-custom interactive" placeholder="Min 6 characters" required>
+                    <label class="form-label">New Password <span style="color: #ef4444;">*</span></label>
+                    <input type="password" name="new_password" class="form-control-custom" placeholder="Min 6 characters" required>
                 </div>
                 <div class="col-md-6 form-group">
-                    <label class="custom-label">Confirm Password *</label>
-                    <input type="password" name="confirm_password" class="form-control-custom interactive" placeholder="Retype password" required>
+                    <label class="form-label">Confirm Password <span style="color: #ef4444;">*</span></label>
+                    <input type="password" name="confirm_password" class="form-control-custom" placeholder="Retype password" required>
                 </div>
             </div>
 
-            <!-- Section 2: Account Recovery -->
-            <div class="section-divider"><i class="fa-solid fa-life-ring"></i> 2. Recovery Setup</div>
-            
-            <div class="form-group">
-                <label class="custom-label">Security Question *</label>
-                <select name="security_question" class="form-select-custom interactive" required>
-                    <option value="" disabled selected>-- Select a Question --</option>
-                    <option value="What was the name of your first school?">What was the name of your first school?</option>
-                    <option value="What is your mother's maiden name?">What is your mother's maiden name?</option>
-                    <option value="What city were you born in?">What city were you born in?</option>
-                    <option value="What was the name of your first pet?">What was the name of your first pet?</option>
-                </select>
-            </div>
-
-            <div class="form-group">
-                <label class="custom-label">Security Answer *</label>
-                <input type="text" name="security_answer" class="form-control-custom interactive" placeholder="Your Answer" required autocomplete="off">
-            </div>
+            <!-- Section 2: Account Recovery Setup Removed (Now uses Email OTP) -->
 
             <!-- Section 3: Role-Adaptive Metadata -->
             <?php if ($actual_role === 'Student'): ?>
@@ -396,21 +361,21 @@ if ($_SERVER["REQUEST_METHOD"] === "POST") {
                 
                 <div class="row">
                     <div class="col-md-6 form-group">
-                        <label class="custom-label">Roll No *</label>
-                        <input type="text" name="roll_no" class="form-control-custom interactive" placeholder="e.g. 45" required autocomplete="off">
+                        <label class="form-label">Roll No <span style="color: #ef4444;">*</span></label>
+                        <input type="text" name="roll_no" class="form-control-custom" placeholder="e.g. 45" required autocomplete="off">
                     </div>
                     <div class="col-md-6 form-group">
-                        <label class="custom-label">Phone No</label>
-                        <input type="text" name="phone" class="form-control-custom interactive" placeholder="Optional" autocomplete="off">
+                        <label class="form-label">Phone No</label>
+                        <input type="text" name="phone" class="form-control-custom" placeholder="Optional" autocomplete="off">
                     </div>
                 </div>
             <?php elseif ($actual_role === 'Faculty'): ?>
                 <div class="section-divider"><i class="fa-solid fa-chalkboard-user"></i> 3. Primary Teaching Assignment</div>
-                <p style="font-family: var(--font-mono); font-size: 0.8rem; color: var(--text-tech); margin-bottom: 1.5rem;">Select your primary global cohort. You can add more later in your dashboard.</p>
+                <p style="font-size: 0.85rem; color: var(--text-muted); margin-bottom: 1.5rem;">Select your primary global cohort. You can add more later in your dashboard.</p>
                 <div class="row">
                     <div class="col-md-6 form-group">
-                        <label class="custom-label">Department / Branch *</label>
-                        <select name="fac_department" class="form-select-custom interactive" required>
+                        <label class="form-label">Department / Branch <span style="color: #ef4444;">*</span></label>
+                        <select name="fac_department" class="form-select-custom" required>
                             <option value="" disabled selected>-- Select Dept --</option>
                             <option value="AI and Machine Learning">AI and Machine Learning</option>
                             <option value="AI and Data Science">AI and Data Science</option>
@@ -424,8 +389,8 @@ if ($_SERVER["REQUEST_METHOD"] === "POST") {
                         </select>
                     </div>
                     <div class="col-md-6 form-group">
-                        <label class="custom-label">Academic Year *</label>
-                        <select name="fac_academic_year" class="form-select-custom interactive" required>
+                        <label class="form-label">Academic Year <span style="color: #ef4444;">*</span></label>
+                        <select name="fac_academic_year" class="form-select-custom" required>
                             <option value="" disabled selected>-- Select Year --</option>
                             <option value="FY">First Year (FY)</option>
                             <option value="SY">Second Year (SY)</option>
@@ -434,43 +399,37 @@ if ($_SERVER["REQUEST_METHOD"] === "POST") {
                         </select>
                     </div>
                     <div class="col-md-6 form-group">
-                        <label class="custom-label">Subject / Course Code *</label>
-                        <input type="text" name="fac_subject" class="form-control-custom interactive" placeholder="e.g. BEE or CS101" required autocomplete="off">
+                        <label class="form-label">Subject / Course Code <span style="color: #ef4444;">*</span></label>
+                        <input type="text" name="fac_subject" class="form-control-custom" placeholder="e.g. BEE or CS101" required autocomplete="off">
                     </div>
                     <div class="col-12 form-group">
-                        <label class="custom-label">Phone Number (Optional)</label>
-                        <input type="text" name="phone" class="form-control-custom interactive" placeholder="Optional contact" autocomplete="off">
+                        <label class="form-label">Phone Number (Optional)</label>
+                        <input type="text" name="phone" class="form-control-custom" placeholder="Optional contact" autocomplete="off">
                     </div>
                 </div>
             <?php else: ?>
                 <div class="section-divider"><i class="fa-solid fa-address-book"></i> 3. Contact Details</div>
                 
                 <div class="form-group">
-                    <label class="custom-label">Phone Number</label>
-                    <input type="text" name="phone" class="form-control-custom interactive" placeholder="Optional primary contact" autocomplete="off">
+                    <label class="form-label">Phone Number</label>
+                    <input type="text" name="phone" class="form-control-custom" placeholder="Optional primary contact" autocomplete="off">
                 </div>
             <?php endif; ?>
 
-            <button type="submit" class="btn-tech interactive" id="submitBtn">
-                <span>Complete Setup</span> <i class="fa-solid fa-arrow-right"></i>
+            <button type="submit" class="btn-primary" id="submitBtn">
+                Complete Setup <i class="fa-solid fa-arrow-right"></i>
             </button>
         </form>
     </div>
 
-    <!-- VANILLA JS FOR PREMIUM INTERACTIONS -->
+    <!-- Vanilla JS for Form Processing -->
     <script>
     document.addEventListener("DOMContentLoaded", () => {
-        // Connect interactive hover class for cursor styling
-        document.querySelectorAll('.interactive, button, a, input, select, textarea').forEach(el => {
-            el.addEventListener("mouseenter", () => document.body.classList.add("hovering"));
-            el.addEventListener("mouseleave", () => document.body.classList.remove("hovering"));
-        });
-
         // Submit Button Feedback
         document.getElementById('setupForm').addEventListener('submit', function() {
             const btn = document.getElementById('submitBtn');
             btn.style.pointerEvents = 'none';
-            btn.innerHTML = '<i class="fa-solid fa-circle-notch fa-spin me-2"></i> PROCESSING...';
+            btn.innerHTML = '<i class="fa-solid fa-circle-notch fa-spin me-2"></i> Processing...';
         });
     });
     </script>

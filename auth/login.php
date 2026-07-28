@@ -3,6 +3,11 @@ if (session_status() === PHP_SESSION_NONE) {
     session_start();
 }
 
+// Anti-caching headers to prevent browser back-button access after logout
+header("Cache-Control: no-cache, no-store, must-revalidate");
+header("Pragma: no-cache");
+header("Expires: 0");
+
 // Steps out of 'auth' folder to find 'config/db.php'
 require_once(__DIR__ . '/../config/db.php');
 
@@ -101,231 +106,221 @@ if ($_SERVER["REQUEST_METHOD"] == "POST") {
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
     <title>Login | SAAES</title>
     
-    <link href="https://cdn.jsdelivr.net/npm/bootstrap@5.3.0/dist/css/bootstrap.min.css" rel="stylesheet">
+    <!-- Clean Academic Fonts -->
+    <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700&display=swap" rel="stylesheet">
     <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.4.0/css/all.min.css">
-    
-    <!-- Sci-Fi / Technical Fonts -->
-    <link href="https://fonts.googleapis.com/css2?family=Space+Grotesk:wght@400;600;700&family=JetBrains+Mono:wght@100;400;700;800&family=Inter:wght@400;500;600&display=swap" rel="stylesheet">
 
     <style>
         :root {
-            --bg-base: #ffffff;
-            --bg-panel: #fcfcfd;
-            --text-dark: #0f172a; 
-            --text-tech: #475569; 
-            --text-light: #94a3b8;
+            /* Traditional Academic Color Palette */
+            --bg-body: #f8fafc;
+            --bg-card: #ffffff;
+            --navy-primary: #0f172a;
+            --blue-accent: #2563eb;
+            --text-main: #1e293b;
+            --text-muted: #64748b;
+            --border-color: #e2e8f0;
             
-            --accent-main: #7c3aed; /* Vibrant Purple */
-            --accent-glow: #a855f7; 
+            --radius-md: 8px;
+            --radius-lg: 12px;
+            --shadow-md: 0 4px 6px -1px rgba(0,0,0,0.1), 0 2px 4px -1px rgba(0,0,0,0.06);
             
-            --grid-size: 40px;
-            --border-harsh: 2px solid var(--text-dark);
-            
-            --font-head: 'Space Grotesk', sans-serif;
-            --font-mono: 'JetBrains Mono', monospace;
-            --font-body: 'Inter', sans-serif;
+            --font-main: 'Inter', system-ui, -apple-system, sans-serif;
         }
 
         * { margin: 0; padding: 0; box-sizing: border-box; }
 
         body {
-            background-color: var(--bg-base);
-            /* Architectural Blueprint Grid */
-            background-image: 
-                linear-gradient(rgba(124, 58, 237, 0.08) 1px, transparent 1px),
-                linear-gradient(90deg, rgba(124, 58, 237, 0.08) 1px, transparent 1px);
-            background-size: var(--grid-size) var(--grid-size);
-            background-position: center center;
-            color: var(--text-dark);
-            font-family: var(--font-body);
+            background-color: var(--bg-body);
+            color: var(--text-main);
+            font-family: var(--font-main);
             min-height: 100vh;
             display: flex;
             align-items: center;
             justify-content: center;
-            padding: 40px 20px;
-            position: relative;
-            overflow-x: hidden;
-            
-            /* PIXELATED PURPLE CUSTOM CURSOR */
-            cursor: url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' width='32' height='32' viewBox='0 0 32 32' shape-rendering='crispEdges'%3E%3Cpath d='M4 4v20l5-5 4 8 4-2-4-8h8L4 4z' fill='%237c3aed' stroke='white' stroke-width='2'/%3E%3C/svg%3E") 4 4, auto;
+            padding: 20px;
             -webkit-font-smoothing: antialiased;
         }
 
-        /* PIXELATED HOVER CURSOR */
-        a, button, input, select, .interactive {
-            cursor: url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' width='32' height='32' viewBox='0 0 32 32' shape-rendering='crispEdges'%3E%3Cpath d='M4 4v20l5-5 4 8 4-2-4-8h8L4 4z' fill='%23a855f7' stroke='%230f172a' stroke-width='2.5'/%3E%3C/svg%3E") 4 4, pointer !important;
-        }
-
-        ::selection { background: var(--accent-main); color: #fff; }
         a { text-decoration: none; color: inherit; }
 
         /* ================= LOGIN CARD ================= */
-        .request-card {
-            background: rgba(255, 255, 255, 0.95);
-            border: var(--border-harsh);
+        .login-card {
+            background: var(--bg-card);
+            border: 1px solid var(--border-color);
             width: 100%;
-            max-width: 480px;
-            z-index: 5;
-            padding: 3rem;
-            position: relative;
-            backdrop-filter: blur(10px);
-            box-shadow: 15px 15px 0px rgba(124, 58, 237, 0.15);
-            clip-path: polygon(0 0, calc(100% - 30px) 0, 100% 30px, 100% 100%, 30px 100%, 0 calc(100% - 30px));
-            animation: fadeUp 0.6s cubic-bezier(0.16, 1, 0.3, 1) forwards;
-        }
-        .request-card::before {
-            content: ''; position: absolute; top: 0; left: 0; width: 40px; height: 40px;
-            border-right: 2px solid var(--text-dark); border-bottom: 2px solid var(--text-dark);
+            max-width: 450px;
+            border-radius: var(--radius-lg);
+            padding: 3rem 2.5rem;
+            box-shadow: var(--shadow-md);
         }
 
-        @keyframes fadeUp {
-            from { opacity: 0; transform: translateY(30px); }
-            to { opacity: 1; transform: translateY(0); }
+        .card-header {
+            text-align: center;
+            margin-bottom: 2rem;
         }
 
-        .sys-tag {
-            font-family: var(--font-mono);
-            font-size: 0.75rem;
-            font-weight: 700;
-            text-transform: uppercase;
-            letter-spacing: 0.15em;
-            color: var(--accent-main);
-            margin-bottom: 0.75rem;
+        .sys-icon {
             display: inline-flex;
             align-items: center;
-            gap: 0.5rem;
-            background: rgba(124, 58, 237, 0.08);
-            padding: 0.3rem 0.8rem;
-            border: 1px solid rgba(124, 58, 237, 0.2);
+            justify-content: center;
+            width: 60px;
+            height: 60px;
+            background: #eff6ff;
+            color: var(--blue-accent);
+            border-radius: 50%;
+            font-size: 1.5rem;
+            margin-bottom: 1rem;
         }
 
         .card-title {
-            font-family: var(--font-head);
-            font-size: 2.2rem;
+            font-size: 1.6rem;
             font-weight: 700;
-            color: var(--text-dark);
-            text-transform: uppercase;
-            letter-spacing: -0.02em;
+            color: var(--navy-primary);
             margin-bottom: 0.5rem;
-            line-height: 1.1;
         }
 
         .card-subtitle {
-            font-family: var(--font-body);
-            color: var(--text-tech);
-            font-size: 0.9rem;
+            color: var(--text-muted);
+            font-size: 0.95rem;
             line-height: 1.5;
-            margin-bottom: 2.5rem;
-            border-left: 2px solid var(--accent-main);
-            padding-left: 1rem;
         }
 
         /* ================= FORM ELEMENTS ================= */
         .form-group { margin-bottom: 1.25rem; }
         
-        .custom-label {
-            font-family: var(--font-mono);
-            font-size: 0.8rem;
-            font-weight: 700;
-            text-transform: uppercase;
-            color: var(--text-dark);
-            margin-bottom: 6px;
+        .form-label {
+            font-size: 0.85rem;
+            font-weight: 600;
+            color: var(--text-main);
+            margin-bottom: 0.4rem;
             display: block;
         }
 
         .form-control-custom, .form-select-custom {
-            background-color: var(--bg-base);
-            border: 1px solid var(--text-tech);
-            color: var(--text-dark);
-            padding: 12px 16px;
-            font-family: var(--font-body);
+            background-color: var(--bg-body);
+            border: 1px solid var(--border-color);
+            color: var(--text-main);
+            padding: 0.75rem 1rem;
+            font-family: var(--font-main);
             font-size: 0.95rem;
             width: 100%;
-            transition: all 0.3s ease;
-            border-radius: 0;
+            transition: all 0.2s ease;
+            border-radius: var(--radius-md);
             -webkit-appearance: none;
         }
         
-        .form-control-custom:focus, .form-select-custom:focus {
-            border-color: var(--text-dark);
-            border-width: 2px;
-            outline: none;
-            padding: 11px 15px; /* Offset border width */
+        .form-select-custom {
+            background-image: url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' width='16' height='16' viewBox='0 0 24 24' fill='none' stroke='%2364748b' stroke-width='2' stroke-linecap='round' stroke-linejoin='round'%3E%3Cpolyline points='6 9 12 15 18 9'%3E%3C/polyline%3E%3C/svg%3E");
+            background-repeat: no-repeat;
+            background-position: right 1rem center;
+            background-size: 1em;
+            padding-right: 2.5rem;
         }
-        .form-control-custom::placeholder { color: var(--text-light); font-family: var(--font-mono); font-size: 0.85rem; }
+        
+        .form-control-custom:focus, .form-select-custom:focus {
+            border-color: var(--blue-accent);
+            background-color: var(--bg-card);
+            outline: none;
+            box-shadow: 0 0 0 3px rgba(37, 99, 235, 0.1);
+        }
+
+        .form-control-custom::placeholder { color: #94a3b8; font-size: 0.9rem; }
 
         /* ================= BUTTON ================= */
-        .btn-tech {
-            font-family: var(--font-mono); font-weight: 700; font-size: 1rem; text-transform: uppercase;
-            padding: 1rem 1.2rem; display: inline-flex; align-items: center; justify-content: center; gap: 0.75rem;
-            background: var(--text-dark); color: #fff; border: 2px solid var(--text-dark);
-            position: relative; overflow: hidden; z-index: 1; cursor: pointer;
-            clip-path: polygon(15px 0, 100% 0, 100% calc(100% - 15px), calc(100% - 15px) 100%, 0 100%, 0 15px);
-            transition: color 0.3s; width: 100%; margin-top: 1rem;
+        .btn-primary {
+            font-family: var(--font-main);
+            font-weight: 600;
+            font-size: 1rem;
+            padding: 0.85rem 1.2rem;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            gap: 0.5rem;
+            background: var(--blue-accent);
+            color: #fff;
+            border: none;
+            border-radius: var(--radius-md);
+            width: 100%;
+            cursor: pointer;
+            transition: background 0.2s ease, transform 0.1s ease;
+            margin-top: 1.5rem;
         }
-        .btn-tech::before {
-            content: ''; position: absolute; top: 0; left: -100%; width: 100%; height: 100%;
-            background: var(--accent-main); z-index: -1; transition: left 0.3s cubic-bezier(0.7, 0, 0.3, 1);
-        }
-        .btn-tech:hover { color: #fff; border-color: var(--accent-main); }
-        .btn-tech:hover::before { left: 0; }
-        .btn-tech i { transition: transform 0.3s; }
-        .btn-tech:hover i { transform: translateX(5px); }
 
+        .btn-primary:hover {
+            background: #1d4ed8;
+        }
+
+        .btn-primary:active {
+            transform: scale(0.98);
+        }
+
+        /* ================= HELPER LINKS ================= */
         .helper-links {
             display: flex;
             justify-content: space-between;
             align-items: center;
             margin-top: 1.5rem;
-            font-family: var(--font-mono);
-            font-size: 0.8rem;
-            color: var(--text-tech);
-            text-transform: uppercase;
+            font-size: 0.85rem;
         }
+        
         .helper-links a {
-            font-weight: 700;
-            color: var(--text-dark);
-            transition: color 0.3s;
-            border-bottom: 1px solid transparent;
+            color: var(--text-muted);
+            font-weight: 500;
+            transition: color 0.2s ease;
         }
+        
         .helper-links a:hover {
-            color: var(--accent-main);
-            border-color: var(--accent-main);
+            color: var(--navy-primary);
+        }
+        
+        .helper-links a.primary-link {
+            color: var(--blue-accent);
+            font-weight: 600;
         }
 
-        /* Alerts styling */
+        .helper-links a.primary-link:hover {
+            text-decoration: underline;
+        }
+
+        /* ================= ALERTS ================= */
         .alert { 
-            font-family: var(--font-mono); font-size: 0.85rem; font-weight: 700; text-transform: uppercase; 
-            border: 2px solid transparent; border-radius: 0; padding: 1rem 1.2rem; margin-bottom: 2rem; 
-            display: flex; align-items: center; gap: 0.75rem;
+            font-size: 0.9rem; 
+            font-weight: 500; 
+            border-radius: var(--radius-md); 
+            padding: 1rem 1.25rem; 
+            margin-bottom: 1.5rem; 
+            display: flex; 
+            align-items: center; 
+            gap: 0.75rem;
         }
-        .alert-danger { background: rgba(239, 68, 68, 0.05); color: #ef4444; border-color: #ef4444; }
+        .alert-danger { background: #fee2e2; color: #991b1b; border: 1px solid #fecaca; }
 
-        @media (max-width: 768px) {
-            .request-card { padding: 2rem; clip-path: none; box-shadow: 8px 8px 0px rgba(124, 58, 237, 0.15); border-radius: 0;}
-            .card-title { font-size: 1.8rem; }
+        @media (max-width: 600px) {
+            .login-card { padding: 2rem 1.5rem; }
+            .card-title { font-size: 1.4rem; }
         }
     </style>
 </head>
 <body>
 
-    <div class="request-card">
-        <div class="mb-4">
-            <div class="sys-tag"><i class="fa-solid fa-lock"></i> SYS.AUTH</div>
-            <h3 class="card-title">System Login</h3>
+    <div class="login-card">
+        <div class="card-header">
+            <div class="sys-icon"><i class="fa-solid fa-lock"></i></div>
+            <h3 class="card-title">Portal Login</h3>
             <p class="card-subtitle">Enter your credentials to access your dashboard.</p>
         </div>
 
         <?php if (!empty($error)): ?>
-            <div class="alert alert-danger"><i class="fa-solid fa-triangle-exclamation"></i> ERR // <?php echo htmlspecialchars($error); ?></div>
+            <div class="alert alert-danger"><i class="fa-solid fa-triangle-exclamation"></i> <?php echo htmlspecialchars($error); ?></div>
         <?php endif; ?>
 
         <form method="POST" action="login.php" id="loginForm">
             
             <div class="form-group">
-                <label class="custom-label">Account Role *</label>
+                <label class="form-label">Account Role <span style="color: #ef4444;">*</span></label>
                 <?php $getRole = strtolower($_GET['role'] ?? ''); ?>
-                <select name="role" class="form-select-custom interactive" required>
+                <select name="role" class="form-select-custom" required>
                     <option value="" disabled <?php echo empty($getRole) ? 'selected' : ''; ?>>-- Select Role --</option>
                     <option value="student" <?php echo $getRole === 'student' ? 'selected' : ''; ?>>Student</option>
                     <option value="parent" <?php echo $getRole === 'parent' ? 'selected' : ''; ?>>Parent / Guardian</option>
@@ -337,39 +332,33 @@ if ($_SERVER["REQUEST_METHOD"] == "POST") {
             </div>
 
             <div class="form-group">
-                <label class="custom-label">PRN or Email Address *</label>
-                <input type="text" name="username" class="form-control-custom interactive" placeholder="Enter PRN or Email" required autocomplete="username">
+                <label class="form-label">PRN or Email Address <span style="color: #ef4444;">*</span></label>
+                <input type="text" name="username" class="form-control-custom" placeholder="Enter PRN or Email" required autocomplete="username">
             </div>
 
             <div class="form-group">
-                <label class="custom-label">Password *</label>
-                <input type="password" name="password" class="form-control-custom interactive" placeholder="Enter password" required autocomplete="current-password">
+                <label class="form-label">Password <span style="color: #ef4444;">*</span></label>
+                <input type="password" name="password" class="form-control-custom" placeholder="Enter password" required autocomplete="current-password">
             </div>
 
-            <button type="submit" class="btn-tech interactive" id="submitBtn">
-                <span>Login</span> <i class="fa-solid fa-arrow-right"></i>
+            <button type="submit" class="btn-primary" id="submitBtn">
+                Login <i class="fa-solid fa-arrow-right"></i>
             </button>
 
             <div class="helper-links">
-                <a href="forgot_password.php" class="interactive">Forgot Password?</a>
-                <a href="register.php" class="interactive" style="color: var(--accent-main); border-color: var(--accent-main);">Register / Access</a>
+                <a href="forgot_password.php">Forgot Password?</a>
+                <a href="register.php" class="primary-link">Request Access</a>
             </div>
         </form>
     </div>
 
     <script>
     document.addEventListener("DOMContentLoaded", () => {
-        // Connect interactive hover class for cursor styling
-        document.querySelectorAll('.interactive, button, a, input, select').forEach(el => {
-            el.addEventListener("mouseenter", () => document.body.classList.add("hovering"));
-            el.addEventListener("mouseleave", () => document.body.classList.remove("hovering"));
-        });
-
         // Submit Button Feedback
         document.getElementById('loginForm').addEventListener('submit', function() {
             const btn = document.getElementById('submitBtn');
             btn.style.pointerEvents = 'none';
-            btn.innerHTML = '<i class="fa-solid fa-circle-notch fa-spin me-2"></i> AUTHENTICATING...';
+            btn.innerHTML = '<i class="fa-solid fa-circle-notch fa-spin"></i> Authenticating...';
         });
     });
     </script>
