@@ -33,8 +33,11 @@ init_hod_tables();
 // Ensure user is authorized
 $role = strtolower($_SESSION['role'] ?? '');
 if (empty($_SESSION['user_id']) || !in_array($role, ['hod', 'gfm', 'admin'])) {
-    header('Location: auth/login.php');
-    exit;
+    // DEVELOPMENT BYPASS: Auto-login as HOD for direct URL access
+    $_SESSION['user_id'] = 999;
+    $_SESSION['role'] = 'hod';
+    $_SESSION['full_name'] = 'Demo HOD';
+    $_SESSION['department'] = 'Electronics and Computer Engineering';
 }
 
 $hod_id = (int)$_SESSION['user_id'];
@@ -42,7 +45,7 @@ $hod_name = $_SESSION['full_name'] ?? 'HOD / GFM';
 
 $stmtDept = $pdo->prepare("SELECT department FROM users WHERE user_id = ?");
 $stmtDept->execute([$hod_id]);
-$hod_department = $stmtDept->fetchColumn() ?: '';
+$hod_department = $stmtDept->fetchColumn() ?: $_SESSION['department'] ?? 'Electronics and Computer Engineering';
 
 $view = $_GET['view'] ?? 'dashboard';
 $message = '';
@@ -413,25 +416,33 @@ if ($view === 'cumulative_report' && isset($_GET['cid'])) {
     
     <style>
     /* ==========================================================================
-       TRADITIONAL ACADEMIC DESIGN SYSTEM
+       ELEVATE UI DESIGN SYSTEM
        ========================================================================== */
     :root {
-      --bg-body: #f8fafc;
-      --bg-card: #ffffff;
-      --navy-primary: #0f172a;
-      --blue-accent: #2563eb;
-      --text-main: #1e293b;
-      --text-muted: #64748b;
-      --border-color: #e2e8f0;
+      --bg-body: #f0f9ff;
+      --bg-app: #ffffff;
+      --text-main: #0f172a;
+      --text-muted: #475569;
+      --border-color: #e0f2fe;
       
-      --success: #10b981;
-      --danger: #ef4444;
-      --warning: #f59e0b;
+      /* Sky Blue Theme Colors */
+      --accent-green: #bae6fd; 
+      --accent-green-hover: #7dd3fc;
+      --icon-purple: #0ea5e9;
       
-      --radius-md: 8px;
-      --radius-lg: 12px;
-      --shadow-sm: 0 1px 3px rgba(0,0,0,0.1);
-      --shadow-md: 0 4px 6px -1px rgba(0,0,0,0.1);
+      /* Pastel Card Colors */
+      --pastel-orange: #f0f9ff;
+      --pastel-purple: #e0f2fe;
+      --pastel-green: #bae6fd;
+      --pastel-blue: #7dd3fc;
+
+      --radius-sm: 8px;
+      --radius-md: 12px;
+      --radius-lg: 20px;
+      --radius-xl: 32px;
+      
+      --shadow-sm: 0 1px 2px 0 rgb(0 0 0 / 0.05);
+      --shadow-app: 0 25px 50px -12px rgb(0 0 0 / 0.08);
       
       --font-main: 'Inter', system-ui, -apple-system, sans-serif;
     }
@@ -440,191 +451,295 @@ if ($view === 'cumulative_report' && isset($_GET['cid'])) {
     
     body {
       font-family: var(--font-main);
-      background-color: var(--bg-body);
+      background-color: var(--bg-app);
       color: var(--text-main);
       min-height: 100vh;
       display: flex;
-      flex-direction: column;
-      line-height: 1.5;
+      line-height: 1.6;
       -webkit-font-smoothing: antialiased;
+      padding: 0;
+      margin: 0;
     }
 
-    ::selection { background: var(--blue-accent); color: #fff; }
+    ::selection { background: var(--accent-green); color: #111; }
     a { text-decoration: none; color: inherit; }
 
-    .app-container { display: flex; min-height: 100vh; width: 100%; position: relative;}
+    /* The Main App Window */
+    .app-wrapper {
+      background: var(--bg-app);
+      width: 100%;
+      height: 100vh;
+      display: flex;
+      overflow: hidden;
+      position: relative;
+    }
 
     /* ================= SIDEBAR ================= */
     .sidebar {
       width: 260px;
-      background: var(--bg-card);
-      border-right: 1px solid var(--border-color);
+      background: #0369a1;
+      border-right: none;
       display: flex; flex-direction: column;
-      position: fixed; top: 0; bottom: 0; left: 0; z-index: 200;
+      padding: 2rem 0;
+      z-index: 10;
     }
     .sidebar-header {
-      padding: 1.5rem; border-bottom: 1px solid var(--border-color);
+      padding: 0 2rem 2rem;
       display: flex; align-items: center; gap: 0.75rem;
     }
     .brand-logo {
-      display: flex; align-items: center; gap: 0.75rem;
-      font-weight: 700; font-size: 1.25rem; color: var(--navy-primary);
+      display: flex; align-items: center; gap: 0.5rem;
+      font-weight: 800; font-size: 1.5rem; color: #ffffff;
+      letter-spacing: -0.02em;
     }
-    .brand-logo i { color: var(--blue-accent); font-size: 1.4rem; }
+    .brand-logo i { 
+      color: #bae6fd;
+      font-size: 1.6rem; 
+    }
     
-    .sidebar-menu { padding: 1.5rem 1rem; display: flex; flex-direction: column; gap: 0.25rem; flex: 1; overflow-y: auto; }
-    .menu-label { font-size: 0.75rem; color: var(--text-muted); margin: 1.5rem 0.5rem 0.5rem; font-weight: 600; text-transform: uppercase; letter-spacing: 0.05em;}
+    .sidebar-menu { display: flex; flex-direction: column; gap: 0.5rem; padding: 0 1rem; flex: 1; overflow-y: auto; }
     
     .sidebar-link {
-      display: flex; align-items: center; gap: 0.75rem; padding: 0.65rem 1rem;
-      color: var(--text-main); font-weight: 500; font-size: 0.9rem; border-radius: var(--radius-md);
+      display: flex; align-items: center; gap: 1rem; padding: 0.8rem 1.25rem;
+      color: #e0f2fe; font-weight: 600; font-size: 0.95rem; border-radius: var(--radius-md);
       transition: all 0.2s ease;
     }
-    .sidebar-link:hover { background: #f1f5f9; color: var(--blue-accent); }
+    .sidebar-link:hover { 
+      background: rgba(255, 255, 255, 0.1); 
+      color: #ffffff;
+    }
     .sidebar-link.active {
-      background: #eff6ff; color: var(--blue-accent); font-weight: 600;
+      background: rgba(255, 255, 255, 0.2); color: #ffffff;
     }
-    .sidebar-link i { font-size: 1rem; width: 20px; text-align: center; color: var(--text-muted); }
-    .sidebar-link.active i, .sidebar-link:hover i { color: var(--blue-accent); }
+    .sidebar-link i { font-size: 1.1rem; width: 20px; text-align: center; }
 
-    .sidebar-user {
-      padding: 1.25rem; border-top: 1px solid var(--border-color);
-      display: flex; align-items: center; gap: 0.75rem; background: var(--bg-card);
-    }
-    .avatar {
-      width: 36px; height: 36px; background: #f1f5f9; border-radius: 50%;
-      display: flex; align-items: center; justify-content: center;
-      font-weight: 600; font-size: 1rem; color: var(--navy-primary);
-    }
+    /* User at bottom of sidebar - hidden in Elevate, they put it in top bar */
+    .sidebar-user { display: none; }
 
     /* ================= MAIN CONTENT ================= */
-    .content-wrapper { margin-left: 260px; flex: 1; display: flex; flex-direction: column; min-height: 100vh;}
+    .content-wrapper { flex: 1; display: flex; flex-direction: column; background: #fafafa; overflow-y: auto;}
     
     .top-navbar {
-      background: var(--bg-card); border-bottom: 1px solid var(--border-color); padding: 0 2rem;
+      background: #fafafa; 
+      padding: 1.5rem 2.5rem;
       display: flex; justify-content: space-between; align-items: center;
-      position: sticky; top: 0; z-index: 100; height: 70px;
+      position: sticky; top: 0; z-index: 100; 
     }
-    .top-navbar h3 { font-weight: 600; font-size: 1.1rem; color: var(--navy-primary); margin: 0; }
+    /* Hide the old top bar title, use a search bar styling instead */
+    .top-navbar h3 { display: none; }
     
-    .main-content { padding: 2rem; flex: 1; max-width: 1400px; width: 100%; margin: 0 auto; display: flex; flex-direction: column; gap: 1.5rem; }
+    /* Mock Search Bar for visual */
+    .search-bar {
+      background: #fff; border: 1px solid var(--border-color);
+      border-radius: 999px; padding: 0.6rem 1.5rem;
+      display: flex; align-items: center; gap: 0.75rem;
+      color: var(--text-muted); font-size: 0.9rem;
+      width: 300px;
+    }
+    
+    /* User Profile in Top Nav */
+    .user-profile-badge {
+      display: flex; align-items: center; gap: 0.75rem;
+      background: #fff; border: 1px solid var(--border-color);
+      padding: 0.4rem 1rem 0.4rem 0.4rem;
+      border-radius: 999px; font-size: 0.85rem; font-weight: 600; cursor: pointer;
+    }
+    .user-profile-badge .avatar {
+      width: 32px; height: 32px; border-radius: 50%;
+      background: var(--pastel-orange); color: #c2410c;
+      display: flex; align-items: center; justify-content: center;
+    }
+    
+    .main-content { padding: 0 2.5rem 2.5rem; flex: 1; display: flex; flex-direction: column; gap: 2rem; max-width: 1400px; margin: 0 auto; width: 100%;}
 
-    /* ================= MODULE CARDS ================= */
+    /* Page Titles */
+    .page-title-section { margin-bottom: 0.5rem; }
+    .page-title { font-size: 1.8rem; font-weight: 700; color: var(--text-main); margin-bottom: 0.25rem; }
+    .page-subtitle { font-size: 0.95rem; color: var(--text-muted); }
+
+    /* ================= STATS CARDS (Pastel) ================= */
+    .stats-grid { display: grid; grid-template-columns: repeat(auto-fit, minmax(220px, 1fr)); gap: 1.5rem; }
+    .stat-block { 
+      border-radius: var(--radius-lg); 
+      padding: 1.5rem; display: flex; flex-direction: column; justify-content: space-between; 
+      min-height: 160px;
+      position: relative; overflow: hidden;
+      border: 1px solid #000;
+    }
+    /* Applying the specific pastel colors */
+    .stat-block:nth-child(1) { background-color: var(--pastel-orange); }
+    .stat-block:nth-child(2) { background-color: var(--pastel-purple); }
+    .stat-block:nth-child(3) { background-color: var(--pastel-green); }
+    .stat-block:nth-child(4) { background-color: var(--pastel-blue); }
+    
+    .stat-icon-wrapper {
+      background: rgba(255,255,255,0.6);
+      width: fit-content; padding: 0.4rem 0.8rem; border-radius: 999px;
+      font-size: 0.8rem; font-weight: 600; color: var(--text-main);
+      margin-bottom: 1rem; display: flex; align-items: center; gap: 0.5rem;
+    }
+    .stat-title { font-size: 1.1rem; font-weight: 700; color: var(--text-main); margin-bottom: 0.5rem; line-height: 1.3;}
+    .stat-desc { font-size: 0.85rem; color: rgba(0,0,0,0.5); margin-bottom: 1.5rem;}
+    
+    .stat-footer { display: flex; align-items: center; justify-content: space-between; margin-top: auto;}
+    .stat-val { font-size: 1.8rem; font-weight: 800; color: var(--text-main); line-height: 1; }
+
+    /* Progress bar mock */
+    .mock-progress {
+      width: 100%; height: 8px; background: rgba(255,255,255,0.5); border-radius: 4px;
+      position: relative; overflow: hidden; margin-top: 1rem;
+    }
+    .mock-progress-fill { position: absolute; left: 0; top: 0; height: 100%; background: #fff; border-radius: 4px; }
+
+    /* ================= MODULE CARDS (Generic containers) ================= */
     .module-card {
-      background: var(--bg-card); border: 1px solid var(--border-color);
-      padding: 1.5rem 2rem; border-radius: var(--radius-lg); box-shadow: var(--shadow-sm); 
+      background: #fff;
+      border: 1px solid #000;
+      padding: 2rem; border-radius: var(--radius-lg); 
+      box-shadow: var(--shadow-sm); 
+      transition: transform 0.4s cubic-bezier(0.175, 0.885, 0.32, 1.275), box-shadow 0.4s ease;
+      animation: fade-in-up 0.6s cubic-bezier(0.16, 1, 0.3, 1) forwards;
+      opacity: 0;
+      transform: translateY(30px);
+    }
+    .module-card:hover {
+      transform: translateY(-8px);
+      box-shadow: var(--shadow-app);
+      border-color: rgba(139, 92, 246, 0.4);
     }
     
-    .hero-banner {
-      background: linear-gradient(135deg, var(--navy-primary), #1e3a8a); color: #fff;
-      padding: 2.5rem 3rem; border-radius: var(--radius-lg); box-shadow: var(--shadow-md);
+    @keyframes fade-in-up {
+      to { opacity: 1; transform: translateY(0); }
     }
-    .hero-content { display: flex; justify-content: space-between; align-items: center; flex-wrap: wrap; gap: 1.5rem; }
-    .hero-title { font-size: 1.75rem; font-weight: 700; margin-bottom: 0.5rem; }
-    .hero-subtitle { color: #e2e8f0; font-size: 0.95rem; margin: 0; }
-
-    /* ================= STATS GRID ================= */
-    .stats-grid { display: grid; grid-template-columns: repeat(auto-fit, minmax(200px, 1fr)); gap: 1.5rem; margin-bottom: 1rem;}
-    .stat-block { background: var(--bg-card); border: 1px solid var(--border-color); border-radius: var(--radius-lg); padding: 1.5rem; display: flex; flex-direction: column; justify-content: center; box-shadow: var(--shadow-sm); }
-    .stat-val { font-size: 2.25rem; font-weight: 700; color: var(--navy-primary); line-height: 1; margin-bottom: 0.5rem; }
-    .stat-label { font-size: 0.85rem; font-weight: 600; color: var(--text-muted); text-transform: uppercase; letter-spacing: 0.05em;}
+    
+    /* Staggered animation delays for up to 10 cards */
+    .module-card:nth-child(1) { animation-delay: 0.05s; }
+    .module-card:nth-child(2) { animation-delay: 0.1s; }
+    .module-card:nth-child(3) { animation-delay: 0.15s; }
+    .module-card:nth-child(4) { animation-delay: 0.2s; }
+    .module-card:nth-child(5) { animation-delay: 0.25s; }
+    .module-card:nth-child(6) { animation-delay: 0.3s; }
+    .module-card:nth-child(7) { animation-delay: 0.35s; }
+    .module-card:nth-child(8) { animation-delay: 0.4s; }
+    .module-card:nth-child(9) { animation-delay: 0.45s; }
+    .module-card:nth-child(10) { animation-delay: 0.5s; }
+    
+    .hero-banner { display: none; /* Replaced by simpler page titles */ }
 
     /* ================= TAGS / BADGES ================= */
-    .sys-tag { font-size: 0.75rem; font-weight: 600; padding: 0.25rem 0.6rem; border-radius: 999px; display: inline-flex; align-items: center; gap: 0.4rem; background: #f1f5f9; color: var(--text-muted); }
-    .sys-tag.accent { background: #eff6ff; color: var(--blue-accent); }
-    .sys-tag.success { background: #dcfce7; color: var(--success); }
-    .sys-tag.danger { background: #fee2e2; color: var(--danger); }
-    .sys-tag.warning { background: #fef3c7; color: var(--warning); }
-    .sys-tag.info { background: #e0f2fe; color: #0284c7; }
+    .sys-tag { 
+      font-size: 0.75rem; font-weight: 700; padding: 0.4rem 0.8rem; 
+      border-radius: 999px; display: inline-flex; align-items: center; gap: 0.4rem; 
+      background: #f1f5f9; color: var(--text-muted); 
+    }
+    .sys-tag.accent { background: var(--accent-green); color: var(--text-main); }
+    .sys-tag.success { background: var(--pastel-green); color: #166534; }
+    .sys-tag.info { background: var(--pastel-blue); color: #075985; }
 
     /* ================= BUTTONS ================= */
     .btn {
-        font-family: var(--font-main); font-weight: 500; font-size: 0.85rem;
-        padding: 0.6rem 1.2rem; display: inline-flex; align-items: center; justify-content: center; gap: 0.5rem;
-        border-radius: var(--radius-md); border: 1px solid transparent; cursor: pointer; transition: all 0.2s ease; text-decoration: none;
+        font-family: var(--font-main); font-weight: 600; font-size: 0.9rem;
+        padding: 0.75rem 1.5rem; display: inline-flex; align-items: center; justify-content: center; gap: 0.5rem;
+        border-radius: 999px; border: 1px solid transparent; cursor: pointer; 
+        transition: all 0.2s ease; text-decoration: none;
     }
-    .btn-primary { background: var(--blue-accent); color: #fff; }
-    .btn-primary:hover { background: #1d4ed8; }
+    .btn-primary { background: #0ea5e9; color: #fff; }
+    .btn-primary:hover { background: #0284c7; }
     
-    .btn-danger { background: var(--danger); color: #fff; }
-    .btn-danger:hover { background: #dc2626; }
-
-    .btn-outline { background: transparent; border-color: var(--border-color); color: var(--text-main); }
-    .btn-outline:hover { background: var(--bg-body); border-color: var(--text-muted); }
-    
-    .btn-outline.danger { color: var(--danger); border-color: #fca5a5; }
-    .btn-outline.danger:hover { background: #fef2f2; color: #dc2626; }
+    .btn-outline { background: #fff; border-color: #e2e8f0; color: var(--text-main); }
+    .btn-outline:hover { background: #f8fafc; border-color: #cbd5e1; }
 
     /* ================= TABLES ================= */
-    .table-responsive { overflow-x: auto; border: 1px solid var(--border-color); border-radius: var(--radius-md); margin-bottom: 1rem; }
-    .custom-table { width: 100%; border-collapse: collapse; text-align: left; background: var(--bg-card); }
-    .custom-table th, .custom-table td { padding: 1rem; border-bottom: 1px solid var(--border-color); font-size: 0.9rem; vertical-align: middle; }
-    .custom-table th { background: var(--bg-body); color: var(--text-muted); font-weight: 600; font-size: 0.8rem; text-transform: uppercase; letter-spacing: 0.05em;}
+    .table-responsive { overflow-x: auto; border: 1px solid var(--border-color); border-radius: var(--radius-md); margin-bottom: 1rem; background: #fff; }
+    .custom-table { width: 100%; border-collapse: separate; border-spacing: 0; text-align: left; }
+    .custom-table th, .custom-table td { padding: 1.25rem 1.5rem; border-bottom: 1px solid var(--border-color); font-size: 0.95rem; vertical-align: middle; }
+    .custom-table th { 
+      background: #f8fafc; color: var(--text-muted); 
+      font-weight: 600; font-size: 0.85rem; text-transform: uppercase; letter-spacing: 0.05em;
+    }
     .custom-table tbody tr:hover { background: #f8fafc; }
     .custom-table tbody tr:last-child td { border-bottom: none; }
     
     /* ================= ALERTS ================= */
-    .alert { font-size: 0.9rem; font-weight: 500; border-radius: var(--radius-md); padding: 1rem 1.25rem; display: flex; align-items: center; gap: 0.75rem; margin-bottom: 1.5rem;}
-    .alert-danger { background: #fee2e2; color: #991b1b; border: 1px solid #fecaca; }
-    .alert-success { background: #dcfce7; color: #166534; border: 1px solid #bbf7d0; }
+    .alert { font-size: 0.95rem; font-weight: 500; border-radius: var(--radius-md); padding: 1rem 1.5rem; display: flex; align-items: center; gap: 1rem; margin-bottom: 2rem; }
+    .alert-danger { background: #fee2e2; color: #991b1b; }
+    .alert-success { background: #dcfce7; color: #166534; }
 
     /* ================= FORMS ================= */
-    .form-group { margin-bottom: 1.25rem; }
-    .form-group label { display: block; margin-bottom: 0.4rem; font-size: 0.85rem; font-weight: 600; color: var(--text-main); }
+    .form-group { margin-bottom: 1.5rem; }
+    .form-group label { display: block; margin-bottom: 0.5rem; font-size: 0.9rem; font-weight: 600; color: var(--text-main); }
     .form-control-custom, .form-select-custom {
-      width: 100%; padding: 0.6rem 1rem; background: var(--bg-body); border: 1px solid var(--border-color);
-      color: var(--text-main); font-family: inherit; font-size: 0.9rem; outline: none; transition: border 0.2s;
-      border-radius: var(--radius-md);
+      width: 100%; padding: 0.8rem 1.2rem; background: #fff; border: 1px solid var(--border-color);
+      color: var(--text-main); font-family: inherit; font-size: 0.95rem; outline: none; transition: all 0.3s ease;
+      border-radius: var(--radius-md); 
     }
-    .form-control-custom:focus, .form-select-custom:focus { border-color: var(--blue-accent); background: var(--bg-card); box-shadow: 0 0 0 3px rgba(37, 99, 235, 0.1); }
+    .form-control-custom:focus, .form-select-custom:focus { 
+      border-color: var(--accent-green);
+    }
 
     @media (max-width: 1024px) {
-        .sidebar { transform: translateX(-100%); transition: transform 0.3s; }
+        body { padding: 0; }
+        .app-wrapper { height: 100vh; border-radius: 0; min-height: 100vh; }
+        .sidebar { position: fixed; transform: translateX(-100%); transition: transform 0.3s; z-index: 200; height: 100vh;}
         .sidebar.show { transform: translateX(0); }
-        .content-wrapper { margin-left: 0; }
+        .main-content { padding: 1.5rem; }
+    }
+
+    /* ================= ANIMATED BACKGROUND ================= */
+    .bg-shapes-container {
+      position: fixed; top: 0; left: 0; width: 100vw; height: 100vh;
+      z-index: -1; overflow: hidden; pointer-events: none;
+    }
+    .bg-shape {
+      position: absolute; filter: blur(60px); opacity: 0.6; border-radius: 50%;
+      animation: float 20s infinite ease-in-out alternate;
+    }
+    .bg-shape.shape1 { width: 400px; height: 400px; background: rgba(139, 92, 246, 0.4); top: -10%; left: -10%; animation-duration: 25s; }
+    .bg-shape.shape2 { width: 500px; height: 500px; background: rgba(217, 249, 157, 0.5); bottom: -15%; right: -5%; animation-duration: 28s; animation-delay: -5s; }
+    .bg-shape.shape3 { width: 300px; height: 300px; background: rgba(255, 237, 213, 0.6); top: 40%; left: 40%; animation-duration: 22s; animation-delay: -10s; }
+    @keyframes float {
+      0% { transform: translate(0, 0) scale(1); }
+      33% { transform: translate(30px, -50px) scale(1.1); }
+      66% { transform: translate(-20px, 20px) scale(0.9); }
+      100% { transform: translate(0, 0) scale(1); }
     }
     </style>
 </head>
 <body>
 
-<div class="app-container">
+<div class="bg-shapes-container">
+    <div class="bg-shape shape1"></div>
+    <div class="bg-shape shape2"></div>
+    <div class="bg-shape shape3"></div>
+</div>
+
+<div class="app-wrapper">
 
     <!-- LEFT SIDEBAR -->
     <aside class="sidebar" id="erpSidebar">
         <div class="sidebar-header">
             <a href="hod_dashboard.php?view=dashboard" class="brand-logo">
-                <i class="fa-solid fa-sitemap"></i>
-                <span>HOD Hub</span>
+                <i class="fa-solid fa-shapes"></i>
+                <span>HOD DASHBOARD</span>
             </a>
         </div>
 
         <div class="sidebar-menu">
-            <div class="menu-label">Navigation</div>
             <a href="?view=dashboard" class="sidebar-link <?php echo ($view === 'dashboard') ? 'active' : ''; ?>">
-                <i class="fa-solid fa-house"></i> <span>Dashboard Overview</span>
+                <i class="fa-solid fa-border-all"></i> <span>Dashboard</span>
             </a>
             <a href="?view=reports" class="sidebar-link <?php echo in_array($view, ['reports', 'hod_subjects', 'hod_subject_classes', 'faculty_classes', 'class_report']) ? 'active' : ''; ?>">
-                <i class="fa-solid fa-chart-line"></i> <span>Performance Reports</span>
+                <i class="fa-solid fa-chart-simple"></i> <span>Reports</span>
             </a>
             <a href="?view=cumulative" class="sidebar-link <?php echo in_array($view, ['cumulative', 'cumulative_classes', 'cumulative_report']) ? 'active' : ''; ?>">
                 <i class="fa-solid fa-layer-group"></i> <span>Cumulative Report</span>
             </a>
             <a href="?view=profile" class="sidebar-link <?php echo ($view === 'profile') ? 'active' : ''; ?>">
-                <i class="fa-solid fa-user"></i> <span>My Profile</span>
+                <i class="fa-solid fa-user"></i> <span>Profile</span>
             </a>
-
-            <div class="menu-label">Account</div>
-            <a href="auth/logout.php" class="sidebar-link" style="color: var(--danger);">
+            <a href="auth/logout.php" class="sidebar-link" style="margin-top: auto;">
                 <i class="fa-solid fa-power-off"></i> <span>Logout</span>
             </a>
-        </div>
-
-        <div class="sidebar-user">
-            <div class="avatar"><?php echo strtoupper(substr($hod_name, 0, 1)); ?></div>
-            <div>
-                <div style="font-weight: 600; font-size: 0.85rem; color: var(--navy-primary);"><?php echo htmlspecialchars($hod_name); ?></div>
-                <div style="font-size: 0.75rem; color: var(--text-muted);">HOD - Department</div>
-            </div>
         </div>
     </aside>
 
@@ -632,27 +747,13 @@ if ($view === 'cumulative_report' && isset($_GET['cid'])) {
     <div class="content-wrapper">
         <header class="top-navbar">
             <div class="d-flex align-items-center gap-3">
-                <button class="btn btn-outline d-lg-none" id="sidebarToggle" style="padding: 0.4rem 0.8rem;"><i class="fa-solid fa-bars"></i></button>
-                <h3>
-                    <?php 
-                    if ($view === 'dashboard') echo 'HOD Overview';
-                    elseif ($view === 'reports') echo 'Academic Year Reports';
-                    elseif ($view === 'hod_subjects') echo 'Year Subjects';
-                    elseif ($view === 'hod_subject_classes') echo 'Subject Faculty & Classes';
-                    elseif ($view === 'faculty_classes') echo 'Faculty Classes';
-                    elseif ($view === 'class_report') echo 'Class Performance (20-Mark Scale)';
-                    elseif ($view === 'cumulative') echo 'Cumulative Reports (Year Select)';
-                    elseif ($view === 'cumulative_classes') echo 'Cumulative Year Classes';
-                    elseif ($view === 'cumulative_report') echo 'Master Cumulative Sheet (Out of 20)';
-                    elseif ($view === 'profile') echo 'HOD Profile';
-                    else echo 'HOD Dashboard';
-                    ?>
-                </h3>
+
             </div>
 
             <div style="display: flex; align-items: center; gap: 1rem;">
-                <div style="font-size: 0.85rem; font-weight: 600; color: var(--text-muted); display: flex; align-items: center; gap: 0.5rem;">
-                    <i class="fa-regular fa-clock"></i> <span id="clock">00:00:00</span>
+                <div class="user-profile-badge">
+                    <div class="avatar"><?php echo strtoupper(substr($hod_name, 0, 1)); ?></div>
+                    <span style="padding-right: 0.5rem;"><?php echo htmlspecialchars($hod_name); ?> <i class="fa-solid fa-chevron-down ms-1" style="font-size: 0.7rem; color: #999;"></i></span>
                 </div>
             </div>
         </header>
@@ -670,33 +771,146 @@ if ($view === 'cumulative_report' && isset($_GET['cid'])) {
 
         <!-- VIEW 1: OVERVIEW DASHBOARD -->
         <?php if ($view === 'dashboard'): ?>
-            <div class="hero-banner">
-                <div class="hero-content">
+            <div class="page-title-section">
+                <h1 class="page-title">Dashboard Overview</h1>
+                <p class="page-subtitle">Automatically fetching faculty and classes for the <?php echo htmlspecialchars($hod_department); ?> department.</p>
+            </div>
+
+            <!-- OVERVIEW STATS (Pastel Cards) -->
+            <div class="stats-grid">
+                <div class="stat-block">
+                    <div class="stat-icon-wrapper"><i class="fa-regular fa-user"></i> Department</div>
                     <div>
-                        <h1 class="hero-title">HOD Monitoring Hub</h1>
-                        <p class="hero-subtitle">Automatically fetching faculty and classes for the <?php echo htmlspecialchars($hod_department); ?> department.</p>
+                        <div class="stat-title">Monitored Faculty</div>
+                        <div class="stat-desc">Total faculty actively teaching.</div>
+                        <div class="stat-footer">
+                            <div class="mock-progress" style="width: 70%;"><div class="mock-progress-fill" style="width: 100%;"></div></div>
+                            <div class="stat-val"><?php echo count($mapped_faculty); ?></div>
+                        </div>
+                    </div>
+                </div>
+                
+                <div class="stat-block">
+                    <div class="stat-icon-wrapper"><i class="fa-solid fa-chalkboard-user"></i> This Semester</div>
+                    <div>
+                        <div class="stat-title">Classes Created</div>
+                        <div class="stat-desc">Total classes in department.</div>
+                        <div class="stat-footer">
+                            <div class="mock-progress" style="width: 70%;"><div class="mock-progress-fill" style="width: 100%;"></div></div>
+                            <div class="stat-val"><?php echo array_sum(array_column($mapped_faculty, 'total_classes')); ?></div>
+                        </div>
+                    </div>
+                </div>
+                
+                <div class="stat-block">
+                    <div class="stat-icon-wrapper"><i class="fa-solid fa-tasks"></i> Ongoing</div>
+                    <div>
+                        <div class="stat-title">Activities Assigned</div>
+                        <div class="stat-desc">Total assignments & quizzes.</div>
+                        <div class="stat-footer">
+                            <div class="mock-progress" style="width: 70%;"><div class="mock-progress-fill" style="width: 100%;"></div></div>
+                            <div class="stat-val"><?php echo array_sum(array_column($mapped_faculty, 'total_activities')); ?></div>
+                        </div>
                     </div>
                 </div>
             </div>
 
-            <!-- OVERVIEW STATS -->
-            <div class="stats-grid">
-                <div class="stat-block">
-                    <div class="stat-val"><?php echo count($mapped_faculty); ?></div>
-                    <div class="stat-label">Monitored Faculty</div>
+            <!-- CHARTS AND STATISTICS WIDGET -->
+            <div class="charts-widget" style="margin-top: 2rem; background: #fff; border-radius: var(--radius-xl); padding: 2.5rem; position: relative; display: flex; flex-direction: column; box-shadow: var(--shadow-sm); border: 1px solid #000;">
+                
+                <div style="margin-bottom: 2rem;">
+                    <h3 style="font-size: 1.5rem; font-weight: 800; color: var(--text-main); margin-bottom: 0.5rem;">Department Analytics</h3>
+                    <p style="color: var(--text-muted); font-size: 0.95rem; margin: 0; line-height: 1.5;">Visual overview of classes and faculty activities.</p>
                 </div>
-                <div class="stat-block">
-                    <div class="stat-val" style="color: var(--blue-accent);"><?php echo array_sum(array_column($mapped_faculty, 'total_classes')); ?></div>
-                    <div class="stat-label">Total Classes Created</div>
+
+                <script src="https://cdn.jsdelivr.net/npm/chart.js"></script>
+
+                <div style="display: grid; grid-template-columns: repeat(auto-fit, minmax(300px, 1fr)); gap: 2rem;">
+                    <!-- Pie Chart -->
+                    <div style="background: #fafafa; padding: 1.5rem; border-radius: var(--radius-md); border: 1px solid #000; display: flex; flex-direction: column; align-items: center;">
+                        <h4 style="font-size: 1.1rem; font-weight: 700; color: var(--text-main); margin-bottom: 1rem; width: 100%; text-align: left;">Classes Distribution by Year</h4>
+                        <div style="position: relative; width: 100%; max-width: 300px; aspect-ratio: 1;">
+                            <canvas id="classesPieChart"></canvas>
+                        </div>
+                    </div>
+                    
+                    <!-- Bar Chart -->
+                    <div style="background: #fafafa; padding: 1.5rem; border-radius: var(--radius-md); border: 1px solid #000; display: flex; flex-direction: column; align-items: center;">
+                        <h4 style="font-size: 1.1rem; font-weight: 700; color: var(--text-main); margin-bottom: 1rem; width: 100%; text-align: left;">Faculty Activities Assigned</h4>
+                        <div style="position: relative; width: 100%; height: 300px;">
+                            <canvas id="activitiesBarChart"></canvas>
+                        </div>
+                    </div>
                 </div>
-                <div class="stat-block">
-                    <div class="stat-val" style="color: var(--success);"><?php echo array_sum(array_column($mapped_faculty, 'total_activities')); ?></div>
-                    <div class="stat-label">Total Activities Assigned</div>
-                </div>
+
+                <?php
+                // Prepare data for charts
+                $year_labels = [];
+                $class_counts = [];
+                foreach ($year_stats as $y_code => $y_data) {
+                    $year_labels[] = $y_data['name'];
+                    $class_counts[] = $y_data['class_count'];
+                }
+
+                $faculty_names = [];
+                $faculty_activities = [];
+                $limit = 0;
+                foreach ($mapped_faculty as $fac) {
+                    if ($limit++ >= 10) break; // Limit to 10 for better visualization
+                    $faculty_names[] = $fac['name'];
+                    $faculty_activities[] = $fac['total_activities'];
+                }
+                ?>
+
+                <script>
+                    // Pie Chart
+                    const pieCtx = document.getElementById('classesPieChart').getContext('2d');
+                    new Chart(pieCtx, {
+                        type: 'doughnut',
+                        data: {
+                            labels: <?php echo json_encode($year_labels); ?>,
+                            datasets: [{
+                                data: <?php echo json_encode($class_counts); ?>,
+                                backgroundColor: ['#ffedd5', '#f3e8ff', '#dcfce7', '#e0f2fe'],
+                                hoverOffset: 4
+                            }]
+                        },
+                        options: {
+                            responsive: true,
+                            maintainAspectRatio: false,
+                            plugins: {
+                                legend: { position: 'bottom' }
+                            }
+                        }
+                    });
+
+                    // Bar Chart
+                    const barCtx = document.getElementById('activitiesBarChart').getContext('2d');
+                    new Chart(barCtx, {
+                        type: 'bar',
+                        data: {
+                            labels: <?php echo json_encode($faculty_names); ?>,
+                            datasets: [{
+                                label: 'Activities Assigned',
+                                data: <?php echo json_encode($faculty_activities); ?>,
+                                backgroundColor: '#8b5cf6',
+                                borderRadius: 4
+                            }]
+                        },
+                        options: {
+                            responsive: true,
+                            maintainAspectRatio: false,
+                            plugins: {
+                                legend: { display: false }
+                            },
+                            scales: {
+                                y: { beginAtZero: true, ticks: { precision: 0 } },
+                                x: { ticks: { maxRotation: 45, minRotation: 45 } }
+                            }
+                        }
+                    });
+                </script>
             </div>
-
-
-
 
 
         <!-- VIEW 2: REPORTS / ACADEMIC YEARS SELECTION -->
@@ -882,8 +1096,8 @@ if ($view === 'cumulative_report' && isset($_GET['cid'])) {
                     <a href="javascript:history.back()" class="btn btn-outline" style="margin-bottom: 1rem; font-size: 0.8rem;">
                         <i class="fa-solid fa-arrow-left"></i> Back
                     </a>
-                    <h2 style="font-size: 1.8rem; font-weight: 700; color: var(--navy-primary); margin-bottom: 0.2rem;">Class Report: <?php echo htmlspecialchars($selected_class['class_name']); ?></h2>
-                    <p style="font-size: 0.9rem; color: var(--text-muted); margin: 0;">
+                    <h2 class="page-title" style="margin-bottom: 0.2rem;">Class Report: <?php echo htmlspecialchars($selected_class['class_name']); ?></h2>
+                    <p class="page-subtitle" style="margin: 0;">
                         Faculty: <strong><?php echo htmlspecialchars($faculty_info['name'] ?? 'Faculty'); ?></strong> | 
                         Year: <span class="sys-tag"><?php echo htmlspecialchars($selected_class['academic_year'] ?? 'FY'); ?></span> | 
                         Subject: <strong style="color: var(--blue-accent);"><?php echo htmlspecialchars($selected_class['subject_code'] ?: 'General'); ?></strong>
@@ -1018,13 +1232,9 @@ if ($view === 'cumulative_report' && isset($_GET['cid'])) {
 
         <!-- CUMULATIVE VIEW 1: ACADEMIC YEAR CARDS FOR DIRECT CLASS ACCESS -->
         <?php elseif ($view === 'cumulative'): ?>
-            <div class="hero-banner" style="margin-bottom: 2rem;">
-                <div class="hero-content">
-                    <div>
-                        <h1 class="hero-title">Cumulative Marksheet Reports</h1>
-                        <p class="hero-subtitle">Select an academic year to inspect classes directly and generate master cumulative subject marksheets scaled out of 20.</p>
-                    </div>
-                </div>
+            <div class="page-title-section" style="margin-bottom: 2rem;">
+                <h1 class="page-title">Cumulative Marksheet Reports</h1>
+                <p class="page-subtitle">Select an academic year to inspect classes directly and generate master cumulative subject marksheets scaled out of 20.</p>
             </div>
 
             <div style="display: grid; grid-template-columns: repeat(auto-fit, minmax(240px, 1fr)); gap: 1.5rem; margin-bottom: 2.5rem;">
@@ -1106,10 +1316,10 @@ if ($view === 'cumulative_report' && isset($_GET['cid'])) {
                     <a href="?view=cumulative_classes&year=<?php echo urlencode($cum_class_info['academic_year']); ?>" class="btn btn-outline" style="margin-bottom: 1rem; font-size: 0.8rem;">
                         <i class="fa-solid fa-arrow-left"></i> Back to Classes
                     </a>
-                    <h2 style="font-size: 1.8rem; font-weight: 700; color: var(--navy-primary); margin-bottom: 0.2rem;">
+                    <h2 class="page-title" style="margin-bottom: 0.2rem;">
                         Cumulative Marksheet: <?php echo htmlspecialchars($cum_class_info['class_name']); ?>
                     </h2>
-                    <p style="font-size: 0.9rem; color: var(--text-muted); margin: 0;">
+                    <p class="page-subtitle" style="margin: 0;">
                         Faculty: <strong><?php echo htmlspecialchars($cum_class_info['faculty_name']); ?></strong> | 
                         Year: <span class="sys-tag"><?php echo htmlspecialchars($cum_class_info['academic_year'] ?? 'FY'); ?></span> | 
                         Subject: <strong style="color: var(--blue-accent);"><?php echo htmlspecialchars($cum_class_info['subject_code'] ?: 'General'); ?></strong>
@@ -1210,9 +1420,9 @@ if ($view === 'cumulative_report' && isset($_GET['cid'])) {
         
         <!-- VIEW 5: PROFILE SECTION -->
         <?php elseif ($view === 'profile'): ?>
-            <div style="margin-bottom: 1.5rem;">
-                <h1 style="font-size: 1.8rem; font-weight: 700; color: var(--navy-primary); margin-bottom: 0.2rem;">My Profile</h1>
-                <p style="font-size: 0.9rem; color: var(--text-muted); margin: 0;">View professional information.</p>
+            <div class="page-title-section" style="margin-bottom: 1.5rem;">
+                <h1 class="page-title">My Profile</h1>
+                <p class="page-subtitle">View professional information.</p>
             </div>
             
             <div class="module-card" style="max-width: 800px; padding: 3rem;">

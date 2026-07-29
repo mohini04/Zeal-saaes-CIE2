@@ -121,7 +121,7 @@ try {
 $stmt = $pdo->prepare("
     SELECT s.id AS submission_id, s.original_filename, s.submission_date, s.status AS sub_status,
            s.marks, s.file_type, s.remarks,
-           a.activity_id, a.subject AS subject_code, a.unit, a.title, a.max_marks, a.due_date
+           a.activity_id, a.type, a.subject AS subject_code, a.unit, a.title, a.max_marks, a.due_date
     FROM submissions s
     JOIN activities a ON s.activity_id = a.activity_id
     WHERE s.student_id = ?

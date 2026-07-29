@@ -104,7 +104,7 @@ $myClasses = $stmtClasses->fetchAll(PDO::FETCH_ASSOC) ?: [];
 
 // 3. Fetch all activities & student submissions
 $stmtAct = $pdo->prepare("
-    SELECT DISTINCT a.activity_id AS id, a.subject AS subject_code, a.unit, a.title, a.description, a.due_date, a.max_marks,
+    SELECT DISTINCT a.activity_id AS id, a.type, a.subject AS subject_code, a.unit, a.title, a.description, a.due_date, a.max_marks,
            s.id AS submission_id, s.original_filename, s.submission_date, s.status AS sub_status,
            s.marks, s.file_type, s.remarks
     FROM activities a
