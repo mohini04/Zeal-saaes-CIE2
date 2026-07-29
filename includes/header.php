@@ -9,7 +9,7 @@ $userName   = $_SESSION['user_name'] ?? 'User';
 $dashUrl = 'auth/login.php';
 if ($isLoggedIn) {
     switch ($userRole) {
-        case 'Admin':   $dashUrl = 'auth/admin_dashboard.php'; break;
+        case 'Admin':   $dashUrl = 'auth/admin_users.php'; break;
         case 'Faculty': $dashUrl = 'faculty_dashboard.php'; break;
         case 'HOD':     $dashUrl = 'hod_dashboard.php'; break;
         case 'GFM':     $dashUrl = 'gfm_dashboard.php'; break;

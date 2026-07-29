@@ -348,6 +348,16 @@ if ($action === 'upload' && $_SERVER['REQUEST_METHOD'] === 'POST' && strtolower(
             $stmt->execute([$activityId, $studentTableId, basename($file['name']), $storedName, $destPath, $ext, $fileSize, $submissionDateStr, $isLate, $calcMarks]);
         }
 
+        // Write audit log entry
+        try {
+            $logAction = "Submitted Activity";
+            $logDetails = "Activity: " . $activity['title'] . " | Subject: " . $activity['subject'] . " | Unit: " . $activity['unit'] . " | Marks: " . $calcMarks;
+            $logStmt = $pdo->prepare("INSERT INTO audit_logs (user_id, role, action, details) VALUES (?, 'Student', ?, ?)");
+            $logStmt->execute([$studentTableId, $logAction, $logDetails]);
+        } catch (Exception $e) {
+            // Swallowed safely
+        }
+
         echo json_encode(['success' => true, 'message' => 'Activity uploaded successfully.', 'late' => (bool) $isLate]);
     } catch (Exception $ex) {
         http_response_code(400);

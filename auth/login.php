@@ -57,6 +57,18 @@ if ($_SERVER["REQUEST_METHOD"] == "POST") {
                     }
                 }
 
+                // Write audit log entry (log before first login interceptor to capture all successful logins)
+                try {
+                    $logAction = "Logged in successfully";
+                    $logDetails = "User role: " . $user['role'];
+                    $logStmt = $conn->prepare("INSERT INTO audit_logs (user_id, role, action, details) VALUES (?, ?, ?, ?)");
+                    $logStmt->bind_param("isss", $user['user_id'], $user['role'], $logAction, $logDetails);
+                    $logStmt->execute();
+                    $logStmt->close();
+                } catch (Exception $e) {
+                    // Swallowed safely
+                }
+
                 // FIRST LOGIN INTERCEPTOR GATE
                 if ((int)($user['is_first_login'] ?? 0) === 1) {
                     header("Location: setup_profile.php");
@@ -66,7 +78,7 @@ if ($_SERVER["REQUEST_METHOD"] == "POST") {
                 // Dynamic relative routing depending on role
                 switch ($normalized_role) {
                     case 'admin': 
-                        header("Location: admin_dashboard.php"); 
+                        header("Location: admin_users.php"); 
                         exit();
                     case 'faculty': 
                         header("Location: ../faculty_dashboard.php"); 
