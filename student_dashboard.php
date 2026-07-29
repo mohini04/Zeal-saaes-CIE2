@@ -104,7 +104,7 @@ $myClasses = $stmtClasses->fetchAll(PDO::FETCH_ASSOC) ?: [];
 
 // 3. Fetch all activities & student submissions
 $stmtAct = $pdo->prepare("
-    SELECT DISTINCT a.activity_id AS id, a.subject AS subject_code, a.unit, a.title, a.description, a.due_date, a.max_marks,
+    SELECT DISTINCT a.activity_id AS id, a.type, a.subject AS subject_code, a.unit, a.title, a.description, a.due_date, a.max_marks,
            s.id AS submission_id, s.original_filename, s.submission_date, s.status AS sub_status,
            s.marks, s.file_type, s.remarks
     FROM activities a
@@ -548,7 +548,10 @@ a { text-decoration: none; color: inherit; }
                     <div class="task-card">
                         <div>
                             <div style="display: flex; justify-content: space-between; align-items: flex-start; margin-bottom: 1rem;">
-                                <span class="sys-tag accent"><?= e($item['subject_code']) ?> // U-<?= e($item['unit']) ?></span>
+                                <div style="display: flex; gap: 0.5rem; align-items: center;">
+                                    <span class="sys-tag accent"><?= e($item['subject_code']) ?> // U-<?= e($item['unit']) ?></span>
+                                    <span class="sys-tag hero" style="background: var(--navy-primary); border: none; color: white; padding: 0.15rem 0.5rem; font-size: 0.7rem;"><?= e(ucwords(str_replace('_', ' ', $item['type']))) ?></span>
+                                </div>
                                 <span class="sys-tag <?= $item['countdown_class'] ?>">
                                     <?= $item['countdown_label'] ?>
                                 </span>

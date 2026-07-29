@@ -2,7 +2,7 @@
   /* Premium Light Theme Colors */
   --primary-color: #4F46E5; /* Indigo */
   --primary-hover: #4338CA;
-  --bg-color: #F8FAFC;
+  --bg-color: #FFFFFF;
   --surface-color: #FFFFFF;
   --surface-color-glass: rgba(255, 255, 255, 0.7);
   --text-main: #0F172A;
@@ -32,7 +32,7 @@
   
   /* Faculty Theme Colors */
   --fac-primary: #0B3D91;
-  --fac-bg: #F8FAFC;
+  --fac-bg: #FFFFFF;
   --fac-success: #22C55E;
   --fac-warning: #F59E0B;
   --fac-danger: #EF4444;
@@ -561,11 +561,17 @@ a {
   font-size: 1.5rem;
 }
 
+.card-total { background: rgba(79, 70, 229, 0.05); border: 1px solid rgba(79, 70, 229, 0.2); }
 .card-total .card-icon { background: rgba(79, 70, 229, 0.1); color: var(--primary-color); }
+.card-submitted { background: rgba(16, 185, 129, 0.05); border: 1px solid rgba(16, 185, 129, 0.2); }
 .card-submitted .card-icon { background: rgba(16, 185, 129, 0.1); color: var(--success-color); }
+.card-pending { background: rgba(245, 158, 11, 0.05); border: 1px solid rgba(245, 158, 11, 0.2); }
 .card-pending .card-icon { background: rgba(245, 158, 11, 0.1); color: var(--warning-color); }
+.card-marks { background: rgba(139, 92, 246, 0.05); border: 1px solid rgba(139, 92, 246, 0.2); }
 .card-marks .card-icon { background: rgba(139, 92, 246, 0.1); color: var(--purple-color); }
+.card-score { background: rgba(59, 130, 246, 0.05); border: 1px solid rgba(59, 130, 246, 0.2); }
 .card-score .card-icon { background: rgba(59, 130, 246, 0.1); color: var(--info-color); }
+.card-rank { background: rgba(249, 115, 22, 0.05); border: 1px solid rgba(249, 115, 22, 0.2); }
 .card-rank .card-icon { background: rgba(249, 115, 22, 0.1); color: var(--orange-color); }
 
 .card-info {

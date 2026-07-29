@@ -121,7 +121,7 @@ try {
 $stmt = $pdo->prepare("
     SELECT s.id AS submission_id, s.original_filename, s.submission_date, s.status AS sub_status,
            s.marks, s.file_type, s.remarks,
-           a.activity_id, a.subject AS subject_code, a.unit, a.title, a.max_marks, a.due_date
+           a.activity_id, a.type, a.subject AS subject_code, a.unit, a.title, a.max_marks, a.due_date
     FROM submissions s
     JOIN activities a ON s.activity_id = a.activity_id
     WHERE s.student_id = ?
@@ -745,6 +745,7 @@ if ($action === 'preview' || $action === 'download') {
                                 <td><span style="font-weight: 600; font-size: 0.8rem; color: var(--text-muted);">Unit <?= e($a['unit']) ?></span></td>
                                 <td>
                                     <strong style="font-size: 0.95rem; display: block; margin-bottom: 0.2rem; color: var(--text-main);"><?= e($a['title']) ?></strong>
+                                    <span class="sys-tag hero" style="background: var(--navy-primary); border: none; color: white; padding: 0.15rem 0.5rem; font-size: 0.65rem; margin:0; margin-bottom: 0.3rem; margin-right: 0.3rem;"><?= e(ucwords(str_replace('_', ' ', $a['type']))) ?></span>
                                     <?php if (!empty($a['target_type']) && $a['target_type'] === 'class' && !empty($a['class_name'])): ?>
                                         <span class="sys-tag info" style="font-size: 0.65rem; margin:0;">Class: <?= e($a['class_name']) ?></span>
                                     <?php endif; ?>

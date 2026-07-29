@@ -271,7 +271,8 @@ function get_type_meta($type) {
         'ppt' => ['name' => 'PPT Presentation', 'color' => '#2563eb'],
         'case_study' => ['name' => 'Case Study', 'color' => '#2563eb'],
         'gd' => ['name' => 'Group Discussion', 'color' => '#2563eb'],
-        'mini_project' => ['name' => 'Mini Project', 'color' => '#2563eb']
+        'mini_project' => ['name' => 'Mini Project', 'color' => '#2563eb'],
+        'other' => ['name' => 'Other', 'color' => '#6b7280']
     ];
     return $type_map[$type] ?? ['name' => ucfirst($type), 'color' => '#2563eb'];
 }
@@ -311,6 +312,12 @@ function get_activity_by_id($id) {
 
 function add_new_activity($data) {
     global $pdo;
+    
+    // Ensure metadata column exists
+    try {
+        $pdo->exec("ALTER TABLE activities ADD COLUMN metadata JSON NULL");
+    } catch (PDOException $e) {}
+
     $tid = empty($data['target_id']) ? null : (int)$data['target_id'];
     $ttype = !empty($tid) ? 'class' : ($data['target_type'] ?? 'class');
     $fac_id = (int)($_SESSION['user_id'] ?? 0); 
@@ -320,13 +327,18 @@ function add_new_activity($data) {
         $mysql_date .= ':00'; 
     }
 
+    $metadata_json = null;
+    if (!empty($data['metadata'])) {
+        $metadata_json = json_encode($data['metadata']);
+    }
+
     try {
-        $stmt = $pdo->prepare("INSERT INTO activities (faculty_id, title, type, course, subject, unit, batch, due_date, max_marks, status, description, target_type, target_id) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, 'Active', ?, ?, ?)");
+        $stmt = $pdo->prepare("INSERT INTO activities (faculty_id, title, type, course, subject, unit, batch, due_date, max_marks, status, description, target_type, target_id, metadata) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, 'Active', ?, ?, ?, ?)");
         $stmt->execute([
             $fac_id,
             $data['title'], $data['type'], $data['course'], $data['subject'], $data['unit'], 
             $data['batch'], $mysql_date, $data['total_marks'], $data['description'], 
-            $ttype, $tid
+            $ttype, $tid, $metadata_json
         ]);
         return $pdo->lastInsertId();
     } catch (PDOException $e) { 
@@ -344,12 +356,17 @@ function update_activity($id, $data) {
         $mysql_date .= ':00'; 
     }
 
+    $metadata_json = null;
+    if (!empty($data['metadata'])) {
+        $metadata_json = json_encode($data['metadata']);
+    }
+
     try {
-        $stmt = $pdo->prepare("UPDATE activities SET title = ?, type = ?, course = ?, subject = ?, unit = ?, batch = ?, due_date = ?, max_marks = ?, description = ?, target_type = ?, target_id = ? WHERE activity_id = ?");
+        $stmt = $pdo->prepare("UPDATE activities SET title = ?, type = ?, course = ?, subject = ?, unit = ?, batch = ?, due_date = ?, max_marks = ?, description = ?, target_type = ?, target_id = ?, metadata = ? WHERE activity_id = ?");
         $stmt->execute([
             $data['title'], $data['type'], $data['course'], $data['subject'], $data['unit'], 
             $data['batch'], $mysql_date, $data['total_marks'], $data['description'], 
-            $ttype, $tid, (int)$id
+            $ttype, $tid, $metadata_json, (int)$id
         ]);
         return true;
     } catch (PDOException $e) {
@@ -387,29 +404,37 @@ $success_message = '';
 if ($_SERVER['REQUEST_METHOD'] === 'POST' && isset($_POST['action'])) {
     $action = $_POST['action'];
 
-    if ($action === 'create_activity') {
-        $new_id = add_new_activity([
-            'title' => trim($_POST['title']),
-            'type' => trim($_POST['type']),
-            'course' => trim($_POST['course']),
-            'subject' => trim($_POST['subject']),
-            'unit' => trim($_POST['unit']),
-            'batch' => trim($_POST['batch']),
-            'deadline' => trim($_POST['deadline']),
-            'total_marks' => (int)$_POST['total_marks'],
-            'description' => trim($_POST['description']),
-            'target_type' => trim($_POST['target_type'] ?? 'all'),
-            'target_id' => $_POST['target_id'] ?? null
-        ]);
-        if (is_numeric($new_id) && $new_id > 0) {
-            header("Location: faculty_dashboard.php?view=" . trim($_POST['type']) . "&id=" . $new_id);
-            exit;
-        } else {
-            $message = "Failed to save: " . $new_id;
+    if ($action === 'create_activity' || $action === 'edit_activity') {
+        $metadata = [];
+        if ($_POST['type'] === 'quiz' && isset($_POST['quiz_question'])) {
+            $questions = [];
+            foreach($_POST['quiz_question'] as $idx => $q) {
+                if(trim($q) !== '') {
+                    $questions[] = [
+                        'question' => $q,
+                        'opt_a' => $_POST['quiz_opt_a'][$idx] ?? '',
+                        'opt_b' => $_POST['quiz_opt_b'][$idx] ?? '',
+                        'opt_c' => $_POST['quiz_opt_c'][$idx] ?? '',
+                        'opt_d' => $_POST['quiz_opt_d'][$idx] ?? '',
+                        'correct' => $_POST['quiz_correct'][$idx] ?? 'A'
+                    ];
+                }
+            }
+            $metadata['questions'] = $questions;
+        } elseif ($_POST['type'] === 'gd' && isset($_POST['gd_group'])) {
+            $groups = [];
+            foreach($_POST['gd_group'] as $idx => $g) {
+                if(trim($g) !== '') {
+                    $groups[] = [
+                        'group' => $g,
+                        'topic' => $_POST['gd_topic'][$idx] ?? ''
+                    ];
+                }
+            }
+            $metadata['groups'] = $groups;
         }
-    } elseif ($action === 'edit_activity') {
-        $edit_id = (int)$_POST['activity_id'];
-        if (update_activity($edit_id, [
+        
+        $activity_data = [
             'title' => trim($_POST['title']),
             'type' => trim($_POST['type']),
             'course' => trim($_POST['course']),
@@ -420,11 +445,25 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST' && isset($_POST['action'])) {
             'total_marks' => (int)$_POST['total_marks'],
             'description' => trim($_POST['description']),
             'target_type' => trim($_POST['target_type'] ?? 'all'),
-            'target_id' => $_POST['target_id'] ?? null
-        ])) {
-            $success_message = "Activity updated successfully!";
-        } else {
-            $message = "Error updating activity. Please check input formats.";
+            'target_id' => $_POST['target_id'] ?? null,
+            'metadata' => $metadata
+        ];
+
+        if ($action === 'create_activity') {
+            $new_id = add_new_activity($activity_data);
+            if (is_numeric($new_id) && $new_id > 0) {
+                header("Location: faculty_dashboard.php?view=" . trim($_POST['type']) . "&id=" . $new_id);
+                exit;
+            } else {
+                $message = "Failed to save: " . $new_id;
+            }
+        } elseif ($action === 'edit_activity') {
+            $edit_id = (int)$_POST['activity_id'];
+            if (update_activity($edit_id, $activity_data)) {
+                $success_message = "Activity updated successfully!";
+            } else {
+                $message = "Error updating activity. Please check input formats.";
+            }
         }
     } elseif ($action === 'delete_activity') {
         if (delete_activity((int)$_POST['activity_id'])) {
@@ -447,9 +486,7 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST' && isset($_POST['action'])) {
         } else {
             $message = "Failed to update grade.";
         }
-    } elseif ($action === 'autofill_deduction') {
-        $rate = (int)$_POST['deduction_rate'];
-        $success_message = "Autofilled scores across all activities with {$rate}% deduction rate per day for late submissions!";
+
     } elseif ($action === 'add_students_to_class') {
         $message = "Manual PRN mapping is deprecated. Students are auto-enrolled via global cohorts.";
     } elseif ($action === 'remove_student_from_class') {
@@ -469,7 +506,7 @@ $faculty_classes = get_faculty_classes($faculty_id);
 $activities = get_all_activities();
 $current_activity = get_activity_by_id($id);
 if (!$current_activity && !empty($activities)) {
-    if (in_array($view, ['quiz', 'poster_making', 'ppt', 'case_study', 'gd', 'mini_project'])) {
+    if (in_array($view, ['quiz', 'poster_making', 'ppt', 'case_study', 'gd', 'mini_project', 'other'])) {
         $matching = array_values(array_filter($activities, function($a) use ($view) {
             return strtolower($a['type']) === strtolower($view);
         }));
@@ -500,17 +537,17 @@ foreach($activities as $a) {
     
     <style>
     :root {
-      /* Neon Midnight Theme - Creative & Professional Dark Mode */
-      --bg-base: #0B1120;
-      --bg-glass: rgba(15, 23, 42, 0.75);
-      --bg-card: rgba(30, 41, 59, 0.7);
-      --navy-primary: #F8FAFC;
-      --blue-accent: #22D3EE; /* Neon Cyan */
-      --blue-gradient: linear-gradient(135deg, #8B5CF6 0%, #22D3EE 100%);
-      --text-main: #F1F5F9;
-      --text-muted: #94A3B8;
-      --border-color: rgba(255, 255, 255, 0.08);
-      --border-solid: rgba(34, 211, 238, 0.2);
+      /* Bright White Theme - Clean & Professional Light Mode */
+      --bg-base: #FFFFFF;
+      --bg-glass: rgba(255, 255, 255, 0.75);
+      --bg-card: rgba(248, 250, 252, 0.9);
+      --navy-primary: #0F172A;
+      --blue-accent: #4F46E5; /* Indigo */
+      --blue-gradient: linear-gradient(135deg, #8B5CF6 0%, #4F46E5 100%);
+      --text-main: #1E293B;
+      --text-muted: #64748B;
+      --border-color: rgba(0, 0, 0, 0.08);
+      --border-solid: rgba(79, 70, 229, 0.2);
       
       --success: #10B981;
       --danger: #F43F5E;
@@ -551,12 +588,12 @@ foreach($activities as $a) {
     /* ================= SIDEBAR ================= */
     .sidebar {
       width: 280px;
-      background: var(--bg-card);
+      background: transparent;
       backdrop-filter: blur(20px);
       border-right: 1px solid var(--border-color);
       display: flex; flex-direction: column;
       position: fixed; top: 0; bottom: 0; left: 0; z-index: 200;
-      box-shadow: 4px 0 24px rgba(0,0,0,0.5);
+      box-shadow: 4px 0 24px rgba(0,0,0,0.05);
     }
     .sidebar-header {
       padding: 2rem 1.5rem; border-bottom: 1px solid var(--border-color);
@@ -589,17 +626,17 @@ foreach($activities as $a) {
       transform: translateX(6px);
     }
     .sidebar-link.active {
-      background: var(--blue-gradient); color: #0B1120; font-weight: 700;
-      box-shadow: 0 4px 15px rgba(34, 211, 238, 0.3);
+      background: var(--blue-gradient); color: #FFFFFF; font-weight: 700;
+      box-shadow: 0 4px 15px rgba(79, 70, 229, 0.3);
       transform: scale(1.02);
     }
     .sidebar-link i { font-size: 1.15rem; width: 24px; text-align: center; transition: all 0.3s ease;}
-    .sidebar-link.active i { color: #0B1120; }
+    .sidebar-link.active i { color: #FFFFFF; }
     .sidebar-link:hover:not(.active) i { color: var(--blue-accent); transform: scale(1.1); }
 
     .sidebar-user {
       padding: 1.5rem; border-top: 1px solid var(--border-color);
-      display: flex; align-items: center; gap: 1rem; background: rgba(0,0,0,0.1);
+      display: flex; align-items: center; gap: 1rem; background: transparent;
     }
     .avatar {
       width: 44px; height: 44px; 
@@ -735,18 +772,18 @@ foreach($activities as $a) {
     .form-group { margin-bottom: 1.5rem; }
     .form-group label { display: block; margin-bottom: 0.5rem; font-size: 0.9rem; font-weight: 700; color: var(--text-main); }
     .form-control, .form-select-custom {
-      width: 100%; padding: 0.85rem 1.25rem; background: rgba(0,0,0,0.2); border: 1px solid var(--border-color);
+      width: 100%; padding: 0.85rem 1.25rem; background: #F8FAFC; border: 1px solid var(--border-color);
       color: var(--text-main); font-family: inherit; font-size: 0.95rem; outline: none; transition: all 0.3s cubic-bezier(0.4, 0, 0.2, 1);
       border-radius: var(--radius-md); 
     }
     .form-control:focus, .form-select-custom:focus { 
         border-color: var(--blue-accent); 
-        background: rgba(0,0,0,0.4); 
-        box-shadow: 0 0 0 4px rgba(34, 211, 238, 0.15); 
+        background: #FFFFFF; 
+        box-shadow: 0 0 0 4px rgba(79, 70, 229, 0.15); 
         transform: translateY(-2px);
     }
-    /* Style the select dropdown options for dark mode */
-    .form-select-custom option { background: #0F172A; color: #F1F5F9; }
+    /* Style the select dropdown options */
+    .form-select-custom option { background: #FFFFFF; color: var(--text-main); }
 
     .modal-overlay {
       position: fixed; top: 0; left: 0; right: 0; bottom: 0;
@@ -757,9 +794,9 @@ foreach($activities as $a) {
     @keyframes fadeIn { from { opacity: 0; backdrop-filter: blur(0px); } to { opacity: 1; backdrop-filter: blur(12px); } }
     
     .modal-content {
-      background: #0F172A; border: 1px solid var(--border-solid);
+      background: #FFFFFF; border: 1px solid var(--border-solid);
       max-width: 650px; width: 100%; max-height: 90vh; overflow-y: auto; padding: 2.5rem;
-      border-radius: var(--radius-lg); box-shadow: 0 25px 50px -12px rgba(0,0,0,0.5), 0 0 30px rgba(34, 211, 238, 0.1); 
+      border-radius: var(--radius-lg); box-shadow: 0 25px 50px -12px rgba(0,0,0,0.2); 
       animation: slideUp 0.5s cubic-bezier(0.175, 0.885, 0.32, 1.275);
     }
     @keyframes slideUp { from { transform: translateY(40px) scale(0.95); opacity: 0; } to { transform: translateY(0) scale(1); opacity: 1; } }
@@ -825,6 +862,9 @@ foreach($activities as $a) {
             <a href="faculty_dashboard.php?view=mini_project" class="sidebar-link <?php echo ($view == 'mini_project') ? 'active' : ''; ?>">
                 <i class="fa-solid fa-microchip"></i> <span>Mini Project</span>
             </a>
+            <a href="faculty_dashboard.php?view=other" class="sidebar-link <?php echo ($view == 'other') ? 'active' : ''; ?>">
+                <i class="fa-solid fa-asterisk"></i> <span>Other</span>
+            </a>
 
             <div class="menu-label">Account</div>
             <a href="auth/logout.php" class="sidebar-link" style="color: #ef4444;">
@@ -845,7 +885,7 @@ foreach($activities as $a) {
     <div class="content-wrapper">
         <header class="top-navbar">
             <div class="d-flex align-items-center gap-3">
-                <button class="btn btn-outline d-lg-none" id="sidebarToggle" style="padding: 0.4rem 0.8rem;"><i class="fa-solid fa-bars"></i></button>
+
                 <h3>
                     <?php 
                     $titles = [
@@ -1100,14 +1140,32 @@ foreach($activities as $a) {
 
                         <div class="form-group">
                             <label>Activity Type *</label>
-                            <select name="type" class="form-select-custom" required>
-                                <option value="quiz">Quiz</option>
-                                <option value="poster_making">Poster Making</option>
-                                <option value="ppt">PPT Presentation</option>
-                                <option value="case_study">Case Study</option>
-                                <option value="gd">Group Discussion</option>
-                                <option value="mini_project">Mini Project</option>
-                            </select>
+                            <?php
+                            $pre_type = isset($_GET['type']) ? $_GET['type'] : null;
+                            $typeNames = [
+                                'quiz' => 'Quiz',
+                                'poster_making' => 'Poster Making',
+                                'ppt' => 'PPT Presentation',
+                                'case_study' => 'Case Study',
+                                'gd' => 'Group Discussion',
+                                'mini_project' => 'Mini Project',
+                                'other' => 'Other'
+                            ];
+                            if ($pre_type && isset($typeNames[$pre_type])): ?>
+                                <input type="hidden" name="type" value="<?php echo htmlspecialchars($pre_type); ?>" id="activity_type_select">
+                                <input type="text" class="form-control-custom" value="<?php echo htmlspecialchars($typeNames[$pre_type]); ?>" disabled style="background-color: #f1f5f9; cursor: not-allowed; color: var(--text-muted); font-weight: 500;">
+                            <?php else: ?>
+                                <select name="type" class="form-select-custom" id="activity_type_select" required>
+                                    <option value="" disabled selected>Select Activity Type</option>
+                                    <option value="quiz">Quiz</option>
+                                    <option value="poster_making">Poster Making</option>
+                                    <option value="ppt">PPT Presentation</option>
+                                    <option value="case_study">Case Study</option>
+                                    <option value="gd">Group Discussion</option>
+                                    <option value="mini_project">Mini Project</option>
+                                    <option value="other">Other</option>
+                                </select>
+                            <?php endif; ?>
                         </div>
                     </div>
 
@@ -1164,6 +1222,106 @@ foreach($activities as $a) {
                         <textarea name="description" class="form-control" rows="5"></textarea>
                     </div>
 
+                    <!-- QUIZ BUILDER SECTION -->
+                    <div id="quiz_builder_section" style="display: none; margin-bottom: 2rem; padding: 1.5rem; background: #F8FAFC; border: 1px solid var(--border-color); border-radius: var(--radius-md);">
+                        <div style="display: flex; justify-content: space-between; align-items: center; margin-bottom: 1rem;">
+                            <h4 style="margin: 0; font-weight: 700; color: var(--navy-primary);">Quiz Questions</h4>
+                            <button type="button" class="btn btn-outline" onclick="addQuizQuestion()" style="padding: 0.3rem 0.8rem; font-size: 0.85rem;"><i class="fa-solid fa-plus"></i> Add Question</button>
+                        </div>
+                        <div id="quiz_questions_container">
+                            <!-- Questions will be appended here -->
+                        </div>
+                    </div>
+
+                    <!-- GD BUILDER SECTION -->
+                    <div id="gd_builder_section" style="display: none; margin-bottom: 2rem; padding: 1.5rem; background: #F8FAFC; border: 1px solid var(--border-color); border-radius: var(--radius-md);">
+                        <div style="display: flex; justify-content: space-between; align-items: center; margin-bottom: 1rem;">
+                            <h4 style="margin: 0; font-weight: 700; color: var(--navy-primary);">Group Discussion Topics</h4>
+                            <button type="button" class="btn btn-outline" onclick="addGDGroup()" style="padding: 0.3rem 0.8rem; font-size: 0.85rem;"><i class="fa-solid fa-plus"></i> Add Group</button>
+                        </div>
+                        <div id="gd_groups_container">
+                            <!-- Groups will be appended here -->
+                        </div>
+                    </div>
+
+                    <script>
+                        document.addEventListener('DOMContentLoaded', function() {
+                            const typeSelect = document.getElementById('activity_type_select');
+                            const quizSection = document.getElementById('quiz_builder_section');
+                            const gdSection = document.getElementById('gd_builder_section');
+
+                            function handleTypeChange() {
+                                quizSection.style.display = 'none';
+                                gdSection.style.display = 'none';
+                                if (typeSelect.value === 'quiz') {
+                                    quizSection.style.display = 'block';
+                                    if(document.getElementById('quiz_questions_container').children.length === 0) {
+                                        addQuizQuestion();
+                                    }
+                                } else if (typeSelect.value === 'gd') {
+                                    gdSection.style.display = 'block';
+                                    if(document.getElementById('gd_groups_container').children.length === 0) {
+                                        addGDGroup();
+                                    }
+                                }
+                            }
+
+                            typeSelect.addEventListener('change', handleTypeChange);
+                            handleTypeChange(); // Run on init
+                        });
+
+                        let quizIndex = 0;
+                        function addQuizQuestion() {
+                            quizIndex++;
+                            const container = document.getElementById('quiz_questions_container');
+                            const div = document.createElement('div');
+                            div.style.cssText = "background: #fff; padding: 1rem; border: 1px solid var(--border-color); border-radius: 6px; margin-bottom: 1rem; position: relative;";
+                            div.innerHTML = `
+                                <button type="button" onclick="this.parentElement.remove()" style="position: absolute; right: 10px; top: 10px; background: none; border: none; color: var(--danger); cursor: pointer;"><i class="fa-solid fa-trash"></i></button>
+                                <div class="form-group" style="margin-bottom: 1rem;">
+                                    <label>Question ${quizIndex}</label>
+                                    <input type="text" name="quiz_question[]" class="form-control" required placeholder="Enter question text">
+                                </div>
+                                <div style="display: grid; grid-template-columns: 1fr 1fr; gap: 1rem; margin-bottom: 1rem;">
+                                    <div><label style="font-size:0.8rem;">Option A</label><input type="text" name="quiz_opt_a[]" class="form-control" required></div>
+                                    <div><label style="font-size:0.8rem;">Option B</label><input type="text" name="quiz_opt_b[]" class="form-control" required></div>
+                                    <div><label style="font-size:0.8rem;">Option C</label><input type="text" name="quiz_opt_c[]" class="form-control" required></div>
+                                    <div><label style="font-size:0.8rem;">Option D</label><input type="text" name="quiz_opt_d[]" class="form-control" required></div>
+                                </div>
+                                <div class="form-group" style="margin-bottom: 0;">
+                                    <label style="font-size:0.8rem;">Correct Answer</label>
+                                    <select name="quiz_correct[]" class="form-select-custom">
+                                        <option value="A">Option A</option>
+                                        <option value="B">Option B</option>
+                                        <option value="C">Option C</option>
+                                        <option value="D">Option D</option>
+                                    </select>
+                                </div>
+                            `;
+                            container.appendChild(div);
+                        }
+
+                        let gdIndex = 0;
+                        function addGDGroup() {
+                            gdIndex++;
+                            const container = document.getElementById('gd_groups_container');
+                            const div = document.createElement('div');
+                            div.style.cssText = "background: #fff; padding: 1rem; border: 1px solid var(--border-color); border-radius: 6px; margin-bottom: 1rem; position: relative; display: flex; gap: 1rem;";
+                            div.innerHTML = `
+                                <div style="flex: 1;">
+                                    <label style="font-size:0.8rem;">Group Name</label>
+                                    <input type="text" name="gd_group[]" class="form-control" required placeholder="e.g. Group 1">
+                                </div>
+                                <div style="flex: 2;">
+                                    <label style="font-size:0.8rem;">Topic</label>
+                                    <input type="text" name="gd_topic[]" class="form-control" required placeholder="Enter GD topic">
+                                </div>
+                                <button type="button" onclick="this.parentElement.remove()" style="background: none; border: none; color: var(--danger); cursor: pointer; padding-top: 1.5rem;"><i class="fa-solid fa-trash"></i></button>
+                            `;
+                            container.appendChild(div);
+                        }
+                    </script>
+
                     <div style="display: flex; justify-content: flex-end; gap: 1rem; border-top: 1px solid var(--border-color); padding-top: 1.5rem;">
                         <a href="faculty_dashboard.php?view=dashboard" class="btn btn-outline">Cancel</a>
                         <button type="submit" class="btn btn-primary">
@@ -1189,27 +1347,6 @@ foreach($activities as $a) {
                 </div>
             </div>
 
-            <!-- AUTOFILL SCORE DEDUCTION TOOL -->
-            <div class="module-card" style="padding: 1.5rem 2rem; margin-bottom: 2rem;">
-                <div style="display: flex; justify-content: space-between; align-items: center; flex-wrap: wrap; gap: 1.5rem;">
-                    <div>
-                        <h3 style="font-size: 1.1rem; font-weight: 700; color: var(--navy-primary); margin: 0;">Automatic Mark Deduction</h3>
-                        <p style="font-size: 0.85rem; color: var(--text-muted); margin: 0;">Apply global late penalties.</p>
-                    </div>
-                    
-                    <form action="faculty_dashboard.php?view=recreate" method="POST" style="display: flex; align-items: center; gap: 0.75rem;">
-                        <input type="hidden" name="action" value="autofill_deduction">
-                        <select name="deduction_rate" class="form-select-custom" style="width: auto; font-size: 0.85rem; padding: 0.4rem 1rem;">
-                            <option value="5">5% Penalty / Day</option>
-                            <option value="10">10% Penalty / Day</option>
-                            <option value="15">15% Penalty / Day</option>
-                        </select>
-                        <button type="submit" class="btn btn-primary" style="padding: 0.45rem 1rem; font-size: 0.85rem;">
-                            Apply
-                        </button>
-                    </form>
-                </div>
-            </div>
 
             <div class="module-card">
                 <div style="display: flex; justify-content: space-between; align-items: center; margin-bottom: 1.5rem;">
@@ -1277,7 +1414,7 @@ foreach($activities as $a) {
 
         <?php
         // VIEW 4: QUICK ACTIVITY VIEWS WITH CLASS/BRANCH WORKSPACE TABS
-        elseif (in_array($view, ['quiz', 'poster_making', 'ppt', 'case_study', 'gd', 'mini_project'])):
+        elseif (in_array($view, ['quiz', 'poster_making', 'ppt', 'case_study', 'gd', 'mini_project', 'other'])):
             $type_meta = get_type_meta($view);
             $type_activities = array_values(array_filter($activities, function($a) use ($view) {
                 return strtolower($a['type']) === strtolower($view);
@@ -1290,7 +1427,7 @@ foreach($activities as $a) {
                         <?php echo htmlspecialchars($type_meta['name']); ?>
                     </h1>
                 </div>
-                <a href="faculty_dashboard.php?view=create" class="btn btn-primary">
+                <a href="faculty_dashboard.php?view=create&type=<?php echo urlencode($view); ?>" class="btn btn-primary">
                     Create New
                 </a>
             </div>
@@ -1539,6 +1676,7 @@ foreach($activities as $a) {
                         <option value="case_study">Case Study</option>
                         <option value="gd">Group Discussion</option>
                         <option value="mini_project">Mini Project</option>
+                        <option value="other">Other</option>
                     </select>
                 </div>
             </div>
