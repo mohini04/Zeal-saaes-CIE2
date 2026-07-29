@@ -247,7 +247,7 @@ if ($userQ && mysqli_num_rows($userQ) > 0) {
             </div>
             <p class="text-secondary small mb-3">Manually assign login credentials for staff roles (Faculty, HOD, GFM, Admin). Default passkey will be <code>Zeal@2026</code>.</p>
 
-            <form method="POST" action="admin_dashboard.php">
+            <form method="POST" action="admin_users.php">
                 <input type="hidden" name="action" value="create_staff_idp">
                 <div class="row g-3 align-items-end">
                     <div class="col-md-3">

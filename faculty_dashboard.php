@@ -1135,6 +1135,7 @@ foreach($activities as $a) {
                                 <option value="Unit 3">Unit 3</option>
                                 <option value="Unit 4">Unit 4</option>
                                 <option value="Unit 5">Unit 5</option>
+                                <option value="Unit 6">Unit 6</option>
                             </select>
                         </div>
 
@@ -1664,6 +1665,7 @@ foreach($activities as $a) {
                         <option value="Unit 3">Unit 3</option>
                         <option value="Unit 4">Unit 4</option>
                         <option value="Unit 5">Unit 5</option>
+                        <option value="Unit 6">Unit 6</option>
                     </select>
                 </div>
 

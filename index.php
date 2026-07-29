@@ -23,7 +23,7 @@ $userRole   = $_SESSION['role'] ?? '';
 $dashUrl = 'auth/login.php';
 if ($isLoggedIn) {
     switch (strtolower($userRole)) {
-        case 'admin':   $dashUrl = 'auth/admin_dashboard.php'; break;
+        case 'admin':   $dashUrl = 'auth/admin_users.php'; break;
         case 'faculty': $dashUrl = 'faculty_dashboard.php'; break;
         case 'hod':     $dashUrl = 'hod_dashboard.php'; break;
         case 'gfm':     $dashUrl = 'gfm_dashboard.php'; break;
@@ -1068,6 +1068,308 @@ if (empty($tickerNotices)) {
                 display: none !important;
             }
         }
+
+        /* ================= CHATBOT WIDGET ================= */
+        #zcoer-chatbot-toggle {
+            position: fixed;
+            bottom: 30px;
+            right: 30px;
+            width: 60px;
+            height: 60px;
+            border-radius: 50%;
+            background: linear-gradient(135deg, var(--primary-blue) 0%, var(--primary-hover) 100%);
+            color: #ffffff;
+            border: none;
+            box-shadow: 0 4px 20px rgba(2, 132, 199, 0.4);
+            cursor: pointer;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            font-size: 1.5rem;
+            z-index: 9999;
+            transition: all 0.3s cubic-bezier(0.175, 0.885, 0.32, 1.275);
+        }
+        #zcoer-chatbot-toggle:hover {
+            transform: scale(1.1) rotate(10deg);
+            box-shadow: 0 6px 24px rgba(2, 132, 199, 0.6);
+        }
+        #zcoer-chatbot-toggle i {
+            transition: all 0.3s ease;
+        }
+        #zcoer-chatbot-toggle.open-active i {
+            transform: rotate(90deg) scale(0);
+            opacity: 0;
+        }
+        #zcoer-chatbot-toggle .close-icon {
+            position: absolute;
+            transform: rotate(-90deg) scale(0);
+            opacity: 0;
+            transition: all 0.3s ease;
+        }
+        #zcoer-chatbot-toggle.open-active .close-icon {
+            transform: rotate(0) scale(1);
+            opacity: 1;
+        }
+
+        #zcoer-chatbot-window {
+            position: fixed;
+            bottom: 105px;
+            right: 30px;
+            width: 370px;
+            height: 520px;
+            max-height: calc(100vh - 140px);
+            background: #ffffff;
+            border-radius: 20px;
+            box-shadow: 0 12px 40px rgba(15, 23, 42, 0.15);
+            border: 1px solid rgba(15, 23, 42, 0.08);
+            display: flex;
+            flex-direction: column;
+            z-index: 9999;
+            overflow: hidden;
+            transform: scale(0.9) translateY(20px);
+            opacity: 0;
+            pointer-events: none;
+            transition: all 0.3s cubic-bezier(0.34, 1.56, 0.64, 1);
+        }
+        #zcoer-chatbot-window.open {
+            transform: scale(1) translateY(0);
+            opacity: 1;
+            pointer-events: auto;
+        }
+
+        .chat-header {
+            background: linear-gradient(135deg, var(--navy-dark) 0%, var(--navy-accent) 100%);
+            color: #ffffff;
+            padding: 16px 20px;
+            display: flex;
+            justify-content: space-between;
+            align-items: center;
+            border-bottom: 1px solid rgba(255, 255, 255, 0.1);
+        }
+        .chat-header-info {
+            display: flex;
+            align-items: center;
+            gap: 10px;
+        }
+        .chat-header-logo {
+            width: 32px;
+            height: 32px;
+            border-radius: 50%;
+            background: #ffffff;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            font-size: 1rem;
+            color: var(--primary-blue);
+            box-shadow: 0 2px 6px rgba(0,0,0,0.15);
+        }
+        .chat-header-title {
+            display: flex;
+            flex-direction: column;
+        }
+        .chat-header-name {
+            font-family: var(--font-head);
+            font-weight: 700;
+            font-size: 0.95rem;
+            line-height: 1.2;
+        }
+        .chat-header-status {
+            font-size: 0.75rem;
+            opacity: 0.85;
+            display: flex;
+            align-items: center;
+            gap: 5px;
+        }
+        .chat-header-status::before {
+            content: '';
+            display: inline-block;
+            width: 8px;
+            height: 8px;
+            border-radius: 50%;
+            background: #10b981;
+            box-shadow: 0 0 8px #10b981;
+        }
+        .chat-header-close {
+            background: none;
+            border: none;
+            color: #ffffff;
+            font-size: 1.2rem;
+            cursor: pointer;
+            opacity: 0.8;
+            transition: all 0.3s ease;
+            width: 30px;
+            height: 30px;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            border-radius: 50%;
+        }
+        .chat-header-close:hover {
+            opacity: 1;
+            background: rgba(255, 255, 255, 0.1);
+            transform: rotate(90deg);
+        }
+
+        .chat-body {
+            flex-grow: 1;
+            overflow-y: auto;
+            padding: 20px;
+            background: #f8fafc;
+            display: flex;
+            flex-direction: column;
+            gap: 12px;
+            scroll-behavior: smooth;
+        }
+        
+        /* Custom scrollbar for chat body */
+        .chat-body::-webkit-scrollbar {
+            width: 5px;
+        }
+        .chat-body::-webkit-scrollbar-track {
+            background: transparent;
+        }
+        .chat-body::-webkit-scrollbar-thumb {
+            background: rgba(15, 23, 42, 0.1);
+            border-radius: 10px;
+        }
+
+        .chat-msg {
+            max-width: 80%;
+            padding: 10px 14px;
+            font-size: 0.88rem;
+            line-height: 1.4;
+            border-radius: 16px;
+            box-shadow: 0 2px 5px rgba(15, 23, 42, 0.03);
+            word-wrap: break-word;
+            animation: msg-fade-in 0.3s ease forwards;
+            opacity: 0;
+            transform: translateY(10px);
+        }
+        @keyframes msg-fade-in {
+            to { opacity: 1; transform: translateY(0); }
+        }
+        
+        .chat-msg.bot {
+            align-self: flex-start;
+            background: #ffffff;
+            color: var(--text-dark);
+            border: 1px solid rgba(15, 23, 42, 0.05);
+            border-bottom-left-radius: 4px;
+        }
+        
+        .chat-msg.user {
+            align-self: flex-end;
+            background: linear-gradient(135deg, var(--primary-blue) 0%, var(--primary-hover) 100%);
+            color: #ffffff;
+            border-bottom-right-radius: 4px;
+        }
+
+        .chat-suggestions-container {
+            display: flex;
+            flex-direction: column;
+            gap: 6px;
+            margin-top: 5px;
+            align-self: flex-start;
+            width: 100%;
+        }
+        
+        .chat-suggest-title {
+            font-size: 0.75rem;
+            font-weight: 600;
+            color: var(--text-muted);
+            margin-bottom: 2px;
+            text-transform: uppercase;
+            letter-spacing: 0.05em;
+        }
+
+        .chat-suggest-btn {
+            background: #ffffff;
+            border: 1px solid rgba(2, 132, 199, 0.2);
+            color: var(--primary-blue);
+            padding: 8px 14px;
+            border-radius: 20px;
+            font-size: 0.82rem;
+            font-weight: 500;
+            cursor: pointer;
+            transition: all 0.25s ease;
+            text-align: left;
+            box-shadow: 0 2px 4px rgba(15, 23, 42, 0.02);
+            font-family: var(--font-body);
+        }
+        .chat-suggest-btn:hover {
+            background: rgba(2, 132, 199, 0.05);
+            border-color: var(--primary-blue);
+            transform: translateX(3px);
+            box-shadow: 0 4px 8px rgba(15, 23, 42, 0.04);
+        }
+
+        .chat-input-area {
+            background: #ffffff;
+            padding: 12px 16px;
+            border-top: 1px solid rgba(15, 23, 42, 0.06);
+            display: flex;
+            gap: 8px;
+            align-items: center;
+        }
+
+        .chat-input-field {
+            flex-grow: 1;
+            border: 1px solid rgba(15, 23, 42, 0.1);
+            border-radius: 24px;
+            padding: 10px 16px;
+            font-size: 0.88rem;
+            outline: none;
+            transition: all 0.3s ease;
+            font-family: var(--font-body);
+            background: #f8fafc;
+        }
+        .chat-input-field:focus {
+            border-color: var(--primary-blue);
+            background: #ffffff;
+            box-shadow: 0 0 0 3px rgba(2, 132, 199, 0.1);
+        }
+
+        .chat-send-btn {
+            width: 40px;
+            height: 40px;
+            border-radius: 50%;
+            background: linear-gradient(135deg, var(--primary-blue) 0%, var(--primary-hover) 100%);
+            color: #ffffff;
+            border: none;
+            cursor: pointer;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            font-size: 0.95rem;
+            box-shadow: 0 2px 8px rgba(2, 132, 199, 0.25);
+            transition: all 0.25s ease;
+        }
+        .chat-send-btn:hover {
+            transform: scale(1.08);
+            box-shadow: 0 4px 12px rgba(2, 132, 199, 0.4);
+        }
+        .chat-send-btn:active {
+            transform: scale(0.95);
+        }
+
+        @media (max-width: 480px) {
+            #zcoer-chatbot-window {
+                bottom: 0;
+                right: 0;
+                width: 100%;
+                height: 100%;
+                max-height: 100%;
+                border-radius: 0;
+                z-index: 10000;
+            }
+            #zcoer-chatbot-toggle {
+                bottom: 15px;
+                right: 15px;
+                width: 50px;
+                height: 50px;
+                z-index: 10001;
+            }
+        }
     </style>
 </head>
 <body>
@@ -1347,6 +1649,33 @@ if (empty($tickerNotices)) {
         </div>
     </footer>
 
+    <!-- Chatbot Widget Toggle Button -->
+    <button id="zcoer-chatbot-toggle" aria-label="Open FAQ Chatbot">
+        <i class="fa-solid fa-comments"></i>
+        <i class="fa-solid fa-xmark close-icon"></i>
+    </button>
+
+    <!-- Chatbot Widget Window -->
+    <div id="zcoer-chatbot-window" role="dialog" aria-label="ZCOER Chatbot Assistant">
+        <div class="chat-header">
+            <div class="chat-header-info">
+                <div class="chat-header-logo">
+                    <i class="fa-solid fa-graduation-cap"></i>
+                </div>
+                <div class="chat-header-title">
+                    <span class="chat-header-name">ZCOER Assistant</span>
+                    <span class="chat-header-status">Online</span>
+                </div>
+            </div>
+            <button class="chat-header-close" id="zcoer-chat-close" aria-label="Minimize chatbot">
+                <i class="fa-solid fa-xmark"></i>
+            </button>
+        </div>
+        <div class="chat-body" id="zcoer-chat-body">
+            <!-- Messages are appended here -->
+        </div>
+    </div>
+
     <!-- Scripts -->
     <script>
         // Update Live Date & Time in Navbar
@@ -1424,6 +1753,294 @@ if (empty($tickerNotices)) {
             };
             window.requestAnimationFrame(step);
         }
+
+        // ================= CHATBOT FUNCTIONALITY =================
+        (function() {
+            const categories = [
+                {
+                    name: "Login & Registration",
+                    color: "#3b82f6", // Blue
+                    questions: [
+                        {
+                            q: "How do I register?",
+                            a: "Click the \"Register\" button in the top navigation and fill in your role-based details."
+                        },
+                        {
+                            q: "How do I log in?",
+                            a: "Click the \"Login\" button in the top navigation and select your role (Student, Faculty, Parent, Admin, HOD, GFM)."
+                        },
+                        {
+                            q: "I forgot my password, what do I do?",
+                            a: "Use the \"Forgot Password\" option on the login page, or contact your administrator if that option isn't available yet."
+                        }
+                    ]
+                },
+                {
+                    name: "Roles & Dashboards",
+                    color: "#8b5cf6", // Purple
+                    questions: [
+                        {
+                            q: "What roles exist in this system?",
+                            a: "Six roles: Student, Faculty, Parent, Admin, HOD, and GFM — each with a different dashboard and permissions."
+                        },
+                        {
+                            q: "What can I do as a Student?",
+                            a: "View assigned activities, submit responses, and track your marks and unit-wise performance on your dashboard."
+                        },
+                        {
+                            q: "What can I do as a Faculty member?",
+                            a: "Create unit-wise activities, view and verify student submissions, override marks if needed, and generate reports."
+                        },
+                        {
+                            q: "What can I do as a Parent?",
+                            a: "Monitor your ward's submitted and pending activities, marks, and overall progress."
+                        },
+                        {
+                            q: "What does an Admin/HOD/GFM see?",
+                            a: "Admins manage users, subjects, and system settings; HOD oversees department-wide activities and performance; GFM monitors student progress and academic data."
+                        }
+                    ]
+                },
+                {
+                    name: "Submission Help",
+                    color: "#10b981", // Green
+                    questions: [
+                        {
+                            q: "What file formats can I submit?",
+                            a: "PDF, JPG, or PNG files only."
+                        },
+                        {
+                            q: "How do I submit my activity?",
+                            a: "Go to your Student Dashboard, open the relevant activity, and use the upload button to attach your PDF/JPG/PNG file before the due date."
+                        },
+                        {
+                            q: "My file won't upload, what's wrong?",
+                            a: "Make sure it's a PDF, JPG, or PNG and under the allowed size limit; if it still fails, refresh and try again or contact support."
+                        },
+                        {
+                            q: "Can I resubmit an activity?",
+                            a: "Check with your faculty — resubmission depends on whether the due date has passed and faculty settings for that activity."
+                        },
+                        {
+                            q: "I missed the deadline, what happens?",
+                            a: "Late submissions are still accepted but receive fewer marks based on how late they are (see \"Marks & Evaluation\" category)."
+                        }
+                    ]
+                },
+                {
+                    name: "Marks & Evaluation",
+                    color: "#f59e0b", // Orange
+                    questions: [
+                        {
+                            q: "How are marks calculated?",
+                            a: "Based on submission timing: Same day = 5, Next day = 4, 2 days late = 3, 3 days late = 2, 4 days late = 1, After 4 days = 0."
+                        },
+                        {
+                            q: "Can a faculty member change my marks?",
+                            a: "Yes, faculty can manually override auto-assigned marks in exceptional cases — for example, valid excuses for late submission."
+                        },
+                        {
+                            q: "Where can I see my marks?",
+                            a: "On your Student Dashboard, under marks obtained and unit-wise performance."
+                        }
+                    ]
+                },
+                {
+                    name: "Final Marksheet",
+                    color: "#0ea5e9", // Teal/Sky Blue
+                    questions: [
+                        {
+                            q: "When is the final marksheet generated?",
+                            a: "After all six units are completed, the system calculates your total and generates the Final Activity Marksheet."
+                        },
+                        {
+                            q: "What is the final marksheet out of?",
+                            a: "Your total marks across all six units are converted to a final score out of 20."
+                        },
+                        {
+                            q: "Can I download my marksheet?",
+                            a: "Yes, the final marksheet can be exported as a PDF once available."
+                        }
+                    ]
+                },
+                {
+                    name: "Contact & Support",
+                    color: "#ef4444", // Red
+                    questions: [
+                        {
+                            q: "Who do I contact for help?",
+                            a: "Email zcoer@zealeducation.com or call 755866663."
+                        },
+                        {
+                            q: "Where is the department located?",
+                            a: "Narhe, Pune - 411041, Maharashtra, India."
+                        }
+                    ]
+                }
+            ];
+
+            const chatToggle = document.getElementById('zcoer-chatbot-toggle');
+            const chatWindow = document.getElementById('zcoer-chatbot-window');
+            const chatClose = document.getElementById('zcoer-chat-close');
+            const chatBody = document.getElementById('zcoer-chat-body');
+
+            let hasGreetingBeenShown = false;
+
+            function toggleChat() {
+                chatWindow.classList.toggle('open');
+                chatToggle.classList.toggle('open-active');
+                if (chatWindow.classList.contains('open')) {
+                    showGreeting();
+                }
+            }
+
+            function appendMessage(text, sender) {
+                const msgDiv = document.createElement('div');
+                msgDiv.classList.add('chat-msg', sender);
+                if (sender === 'user') {
+                    msgDiv.textContent = text;
+                } else {
+                    msgDiv.innerHTML = text;
+                }
+                chatBody.appendChild(msgDiv);
+                chatBody.scrollTop = chatBody.scrollHeight;
+            }
+
+            function disableAllPreviousMenus() {
+                document.querySelectorAll('.chat-menu-options').forEach(container => {
+                    container.querySelectorAll('button').forEach(btn => {
+                        btn.disabled = true;
+                        btn.style.opacity = '0.5';
+                        btn.style.pointerEvents = 'none';
+                    });
+                });
+            }
+
+            function showGreeting() {
+                if (hasGreetingBeenShown) return;
+                appendMessage("Hello! Welcome to the ZCOER ECE Assistant. Please select a topic to get started:", 'bot');
+                renderCategoryMenu();
+                hasGreetingBeenShown = true;
+            }
+
+            function renderCategoryMenu() {
+                const container = document.createElement('div');
+                container.classList.add('chat-menu-options', 'chat-suggestions-container');
+                
+                categories.forEach(cat => {
+                    const btn = document.createElement('button');
+                    btn.classList.add('chat-suggest-btn');
+                    btn.style.borderColor = cat.color;
+                    btn.style.color = cat.color;
+                    btn.tabIndex = 0;
+                    btn.innerHTML = `<i class="fa-solid fa-folder-open" style="margin-right: 6px; font-size: 0.8rem; color: ${cat.color}"></i> ${cat.name}`;
+                    
+                    const selectCategory = () => {
+                        disableAllPreviousMenus();
+                        appendMessage(cat.name, 'user');
+                        setTimeout(() => {
+                            renderCategoryQuestions(cat);
+                        }, 300);
+                    };
+                    btn.onclick = selectCategory;
+                    container.appendChild(btn);
+                });
+                
+                chatBody.appendChild(container);
+                chatBody.scrollTop = chatBody.scrollHeight;
+            }
+
+            function renderCategoryQuestions(cat) {
+                appendMessage(`Here are some common questions about <strong>${cat.name}</strong>:`, 'bot');
+                
+                const container = document.createElement('div');
+                container.classList.add('chat-menu-options', 'chat-suggestions-container');
+                
+                cat.questions.forEach(qItem => {
+                    const btn = document.createElement('button');
+                    btn.classList.add('chat-suggest-btn');
+                    btn.style.borderColor = cat.color;
+                    btn.style.color = cat.color;
+                    btn.tabIndex = 0;
+                    btn.textContent = qItem.q;
+                    
+                    const selectQuestion = () => {
+                        disableAllPreviousMenus();
+                        appendMessage(qItem.q, 'user');
+                        setTimeout(() => {
+                            appendMessage(qItem.a, 'bot');
+                            renderPostQuestionMenu(cat, qItem);
+                        }, 300);
+                    };
+                    btn.onclick = selectQuestion;
+                    container.appendChild(btn);
+                });
+                
+                // Add Back button
+                const backBtn = document.createElement('button');
+                backBtn.classList.add('chat-suggest-btn');
+                backBtn.style.borderColor = '#64748b'; // Slate gray
+                backBtn.style.color = '#64748b';
+                backBtn.tabIndex = 0;
+                backBtn.innerHTML = `⬅ Back`;
+                backBtn.onclick = () => {
+                    disableAllPreviousMenus();
+                    appendMessage("⬅ Back", 'user');
+                    setTimeout(() => {
+                        appendMessage("Please select a topic to get started:", 'bot');
+                        renderCategoryMenu();
+                    }, 300);
+                };
+                container.appendChild(backBtn);
+                
+                chatBody.appendChild(container);
+                chatBody.scrollTop = chatBody.scrollHeight;
+            }
+
+            function renderPostQuestionMenu(cat, qItem) {
+                const container = document.createElement('div');
+                container.classList.add('chat-menu-options', 'chat-suggestions-container');
+                
+                // Back to Category Button
+                const backBtn = document.createElement('button');
+                backBtn.classList.add('chat-suggest-btn');
+                backBtn.style.borderColor = cat.color;
+                backBtn.style.color = cat.color;
+                backBtn.tabIndex = 0;
+                backBtn.innerHTML = `⬅ Back to ${cat.name}`;
+                backBtn.onclick = () => {
+                    disableAllPreviousMenus();
+                    appendMessage(`⬅ Back to ${cat.name}`, 'user');
+                    setTimeout(() => {
+                        renderCategoryQuestions(cat);
+                    }, 300);
+                };
+                container.appendChild(backBtn);
+                
+                // Main Menu Button
+                const mainBtn = document.createElement('button');
+                mainBtn.classList.add('chat-suggest-btn');
+                mainBtn.style.borderColor = '#0284c7';
+                mainBtn.style.color = '#0284c7';
+                mainBtn.tabIndex = 0;
+                mainBtn.innerHTML = `🏠 Main Menu`;
+                mainBtn.onclick = () => {
+                    disableAllPreviousMenus();
+                    appendMessage("🏠 Main Menu", 'user');
+                    setTimeout(() => {
+                        appendMessage("Please select a topic to get started:", 'bot');
+                        renderCategoryMenu();
+                    }, 300);
+                };
+                container.appendChild(mainBtn);
+                
+                chatBody.appendChild(container);
+                chatBody.scrollTop = chatBody.scrollHeight;
+            }
+
+            chatToggle.addEventListener('click', toggleChat);
+            chatClose.addEventListener('click', toggleChat);
+        })();
     </script>
 </body>
 </html>

@@ -24,7 +24,7 @@ $actual_role = $userData['role'] ?? $user_role;
 // Route if setup already completed
 if ((int)($userData['is_first_login'] ?? 0) === 0) {
     switch (strtolower($actual_role)) {
-        case 'admin': header("Location: admin_dashboard.php"); break;
+        case 'admin': header("Location: admin_users.php"); break;
         case 'faculty': header("Location: ../faculty_dashboard.php"); break;
         case 'hod': header("Location: ../hod_dashboard.php"); break;
         case 'gfm': header("Location: ../gfm_dashboard.php"); break;
@@ -102,7 +102,7 @@ if ($_SERVER["REQUEST_METHOD"] === "POST") {
                     
                     $roleLow = strtolower($actual_role);
                     $targetUrl = "../student_dashboard.php";
-                    if ($roleLow === 'admin') $targetUrl = "admin_dashboard.php";
+                    if ($roleLow === 'admin') $targetUrl = "admin_users.php";
                     elseif ($roleLow === 'faculty') $targetUrl = "../faculty_dashboard.php";
                     elseif ($roleLow === 'hod') $targetUrl = "../hod_dashboard.php";
                     elseif ($roleLow === 'gfm') $targetUrl = "../gfm_dashboard.php";
