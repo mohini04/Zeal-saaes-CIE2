@@ -469,7 +469,9 @@ if ($_SERVER["REQUEST_METHOD"] == "POST") {
         }
 
         .form-control-custom:focus ~ .floating-label,
-        .form-control-custom:not(:placeholder-shown) ~ .floating-label {
+        .form-control-custom:not(:placeholder-shown) ~ .floating-label,
+        .form-select-custom:focus ~ .floating-label,
+        .form-select-custom:valid ~ .floating-label {
             transform: translateY(-130%) scale(0.8);
             color: var(--blue-primary);
             font-weight: 600;
@@ -583,6 +585,39 @@ if ($_SERVER["REQUEST_METHOD"] == "POST") {
         @keyframes slideRight { from { opacity: 0; transform: translateX(-20px); } to { opacity: 1; transform: translateX(0); } }
         @keyframes fadeUp { from { opacity: 0; } to { opacity: 1; } }
 
+        /* ================= BACK TO HOME BUTTON ================= */
+        .back-home-btn {
+            position: fixed;
+            top: 30px;
+            left: 30px;
+            z-index: 100;
+            display: inline-flex;
+            align-items: center;
+            gap: 8px;
+            padding: 0.6rem 1.2rem;
+            background: rgba(255, 255, 255, 0.1);
+            backdrop-filter: blur(10px);
+            -webkit-backdrop-filter: blur(10px);
+            border: 1px solid rgba(255, 255, 255, 0.2);
+            border-radius: 30px;
+            color: #ffffff;
+            font-family: var(--font-body);
+            font-weight: 600;
+            font-size: 0.9rem;
+            text-decoration: none;
+            transition: all 0.3s ease;
+            box-shadow: 0 4px 15px rgba(0, 0, 0, 0.2);
+            opacity: 0;
+            animation: fadeUp 0.6s forwards 0.3s;
+        }
+
+        .back-home-btn:hover {
+            background: rgba(255, 255, 255, 0.2);
+            transform: translateX(-3px);
+            box-shadow: 0 6px 20px rgba(0, 0, 0, 0.3);
+            color: #ffffff;
+        }
+
         /* Responsive Breakpoints */
         @media (max-width: 900px) {
             .glass-island { flex-direction: column; max-width: 480px; margin: 0 auto;}
@@ -592,10 +627,16 @@ if ($_SERVER["REQUEST_METHOD"] == "POST") {
         @media (max-width: 480px) {
             .form-pane { padding: 2.5rem 1.5rem; }
             .card-title { font-size: 1.6rem; }
+            .back-home-btn { top: 15px; left: 15px; padding: 0.5rem 1rem; }
         }
     </style>
 </head>
 <body>
+
+    <!-- BACK TO HOME BUTTON -->
+    <a href="../index.php" class="back-home-btn">
+        <i class="fa-solid fa-arrow-left"></i> Home
+    </a>
 
     <!-- BOUNCY POPUP CONTAINER -->
     <div id="popup-container"></div>

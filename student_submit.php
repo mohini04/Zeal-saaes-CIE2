@@ -162,7 +162,7 @@ sort($subjects);
 // Fetch Assigned Activities
 $stmtActs = $pdo->prepare("
     SELECT a.*, a.subject AS subject_code,
-           s.id AS submission_id, s.status AS sub_status, s.marks, s.submission_date, s.file_path, s.original_filename, s.is_late
+           s.id AS submission_id, s.status AS sub_status, s.marks, s.submission_date, s.file_path, s.file_type, s.original_filename, s.is_late
     FROM activities a
     LEFT JOIN submissions s ON a.activity_id = s.activity_id AND (s.student_id = ? OR s.student_id = ?)
     WHERE a.target_type = 'all' 
@@ -697,6 +697,7 @@ if ($action === 'preview' || $action === 'download') {
     .module-card:hover { box-shadow: var(--shadow-md); border-color: #cbd5e1; }
 
     /* ================= TAGS / BADGES ================= */
+    .d-none { display: none !important; }
     .sys-tag {
       font-size: 0.75rem; font-weight: 700; padding: 0.35rem 0.85rem; border-radius: 999px;
       display: inline-flex; align-items: center; gap: 0.4rem; background: #f1f5f9; color: var(--text-muted);

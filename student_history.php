@@ -86,7 +86,12 @@ if ($action === 'preview' || $action === 'download') {
     http_response_code(404);
     exit('File not found.');
   }
-  $fullPath = $UPLOAD_ROOT . $sub['student_id'] . '/' . ($sub['original_filename'] ?? '');
+  $fullPath = '';
+  if (!empty($sub['file_path']) && is_file($sub['file_path'])) {
+      $fullPath = $sub['file_path'];
+  } else {
+      $fullPath = $UPLOAD_ROOT . $sub['student_id'] . '/' . ($sub['original_filename'] ?? '');
+  }
   if (!is_file($fullPath)) {
     http_response_code(404);
     exit('File is missing on the server.');
@@ -520,6 +525,7 @@ function badgeClass($status) {
     .hero-subtitle { color: #cbd5e1; font-size: 0.95rem; margin: 0; max-width: 600px; }
 
     /* ================= TAGS / BADGES ================= */
+    .d-none { display: none !important; }
     .sys-tag {
       font-size: 0.75rem; font-weight: 700; padding: 0.35rem 0.85rem; border-radius: 999px;
       display: inline-flex; align-items: center; gap: 0.4rem; background: #f1f5f9; color: var(--text-muted);
