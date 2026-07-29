@@ -49,7 +49,7 @@ if ($_SERVER["REQUEST_METHOD"] === "POST") {
     $fac_year = (strtolower($actual_role) === 'faculty') ? trim($_POST['fac_academic_year'] ?? '') : NULL;
     $fac_subj = (strtolower($actual_role) === 'faculty') ? trim($_POST['fac_subject'] ?? '') : NULL;
 
-    $isValid = !empty($new_password) && !empty($confirm_password);
+    $isValid = !empty($new_password) && !empty($confirm_password) && !empty($phone);
     if (strtolower($actual_role) === 'student') {
         if (empty($roll_no)) {
             $isValid = false;
@@ -63,7 +63,7 @@ if ($_SERVER["REQUEST_METHOD"] === "POST") {
 
     if ($isValid) {
         if ($new_password === $confirm_password) {
-            if (strlen($new_password) >= 6) {
+            if (strlen($new_password) >= 6 && preg_match('/[A-Z]/', $new_password) && preg_match('/[a-z]/', $new_password) && preg_match('/[0-9]/', $new_password) && preg_match('/[^a-zA-Z0-9]/', $new_password)) {
                 $hashed_password = password_hash($new_password, PASSWORD_BCRYPT);
 
                 $updateStmt = $conn->prepare("UPDATE users SET password = ?, roll_no = ?, phone = ?, is_first_login = 0 WHERE user_id = ?");
@@ -118,7 +118,7 @@ if ($_SERVER["REQUEST_METHOD"] === "POST") {
                 }
                 $updateStmt->close();
             } else {
-                $error = "Password requirement failed: Minimum 6 characters required.";
+                $error = "Password must be at least 6 characters and contain an uppercase letter, a lowercase letter, a number, and a special character.";
             }
         } else {
             $error = "Password confirmation mismatch.";
@@ -345,11 +345,17 @@ if ($_SERVER["REQUEST_METHOD"] === "POST") {
             <div class="row">
                 <div class="col-md-6 form-group">
                     <label class="form-label">New Password <span style="color: #ef4444;">*</span></label>
-                    <input type="password" name="new_password" class="form-control-custom" placeholder="Min 6 characters" required>
+                    <div class="position-relative">
+                        <input type="password" name="new_password" id="new_password" class="form-control-custom" style="padding-right: 2.5rem;" placeholder="Min 6 chars, uppercase, lowercase, number, symbol" required>
+                        <i class="fa-regular fa-eye toggle-password" data-target="new_password" style="position: absolute; right: 1rem; top: 50%; transform: translateY(-50%); cursor: pointer; color: #64748b;"></i>
+                    </div>
                 </div>
                 <div class="col-md-6 form-group">
                     <label class="form-label">Confirm Password <span style="color: #ef4444;">*</span></label>
-                    <input type="password" name="confirm_password" class="form-control-custom" placeholder="Retype password" required>
+                    <div class="position-relative">
+                        <input type="password" name="confirm_password" id="confirm_password" class="form-control-custom" style="padding-right: 2.5rem;" placeholder="Retype password" required>
+                        <i class="fa-regular fa-eye toggle-password" data-target="confirm_password" style="position: absolute; right: 1rem; top: 50%; transform: translateY(-50%); cursor: pointer; color: #64748b;"></i>
+                    </div>
                 </div>
             </div>
 
@@ -365,8 +371,8 @@ if ($_SERVER["REQUEST_METHOD"] === "POST") {
                         <input type="text" name="roll_no" class="form-control-custom" placeholder="e.g. 45" required autocomplete="off">
                     </div>
                     <div class="col-md-6 form-group">
-                        <label class="form-label">Phone No</label>
-                        <input type="text" name="phone" class="form-control-custom" placeholder="Optional" autocomplete="off">
+                        <label class="form-label">Phone No <span style="color: #ef4444;">*</span></label>
+                        <input type="text" name="phone" class="form-control-custom" placeholder="Required" required autocomplete="off">
                     </div>
                 </div>
             <?php elseif ($actual_role === 'Faculty'): ?>
@@ -403,16 +409,16 @@ if ($_SERVER["REQUEST_METHOD"] === "POST") {
                         <input type="text" name="fac_subject" class="form-control-custom" placeholder="e.g. BEE or CS101" required autocomplete="off">
                     </div>
                     <div class="col-12 form-group">
-                        <label class="form-label">Phone Number (Optional)</label>
-                        <input type="text" name="phone" class="form-control-custom" placeholder="Optional contact" autocomplete="off">
+                        <label class="form-label">Phone Number <span style="color: #ef4444;">*</span></label>
+                        <input type="text" name="phone" class="form-control-custom" placeholder="Required contact" required autocomplete="off">
                     </div>
                 </div>
             <?php else: ?>
                 <div class="section-divider"><i class="fa-solid fa-address-book"></i> 3. Contact Details</div>
                 
                 <div class="form-group">
-                    <label class="form-label">Phone Number</label>
-                    <input type="text" name="phone" class="form-control-custom" placeholder="Optional primary contact" autocomplete="off">
+                    <label class="form-label">Phone Number <span style="color: #ef4444;">*</span></label>
+                    <input type="text" name="phone" class="form-control-custom" placeholder="Required primary contact" required autocomplete="off">
                 </div>
             <?php endif; ?>
 
@@ -430,6 +436,23 @@ if ($_SERVER["REQUEST_METHOD"] === "POST") {
             const btn = document.getElementById('submitBtn');
             btn.style.pointerEvents = 'none';
             btn.innerHTML = '<i class="fa-solid fa-circle-notch fa-spin me-2"></i> Processing...';
+        });
+
+        // Toggle Password Visibility
+        document.querySelectorAll('.toggle-password').forEach(function(icon) {
+            icon.addEventListener('click', function() {
+                const targetId = this.getAttribute('data-target');
+                const input = document.getElementById(targetId);
+                if (input.type === 'password') {
+                    input.type = 'text';
+                    this.classList.remove('fa-eye');
+                    this.classList.add('fa-eye-slash');
+                } else {
+                    input.type = 'password';
+                    this.classList.remove('fa-eye-slash');
+                    this.classList.add('fa-eye');
+                }
+            });
         });
     });
     </script>

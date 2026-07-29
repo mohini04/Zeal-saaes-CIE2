@@ -113,7 +113,7 @@ if ($_SERVER["REQUEST_METHOD"] === "POST") {
 
         if ($user_id > 0 && $is_verified) {
             if (!empty($new_password) && $new_password === $confirm_password) {
-                if (strlen($new_password) >= 6) {
+                if (strlen($new_password) >= 6 && preg_match('/[A-Z]/', $new_password) && preg_match('/[a-z]/', $new_password) && preg_match('/[0-9]/', $new_password) && preg_match('/[^a-zA-Z0-9]/', $new_password)) {
                     $hashed_password = password_hash($new_password, PASSWORD_BCRYPT);
 
                     $updateStmt = $conn->prepare("UPDATE users SET password = ? WHERE user_id = ?");
@@ -134,7 +134,7 @@ if ($_SERVER["REQUEST_METHOD"] === "POST") {
                     }
                     $updateStmt->close();
                 } else {
-                    $error = "Password security requirement failed: Minimum 6 characters required.";
+                    $error = "Password must be at least 6 characters and contain an uppercase letter, a lowercase letter, a number, and a special character.";
                     $step = 3;
                 }
             } else {
@@ -434,7 +434,7 @@ if ($_SERVER["REQUEST_METHOD"] === "POST") {
 
                 <div class="form-group">
                     <label class="form-label">New Password <span style="color: #ef4444;">*</span></label>
-                    <input type="password" name="new_password" class="form-control-custom" placeholder="Minimum 6 characters" required>
+                    <input type="password" name="new_password" class="form-control-custom" placeholder="Min 6 chars, uppercase, lowercase, number, symbol" required>
                 </div>
 
                 <div class="form-group">
