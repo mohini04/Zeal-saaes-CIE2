@@ -10,6 +10,17 @@ header("Expires: 0");
 
 require_once __DIR__ . '/config/db.php';
 
+// TEMPORARY: Auto-login as the first student for testing without login
+if (empty($_SESSION['user_id'])) {
+    $stmtTest = $pdo->query("SELECT user_id, name FROM users WHERE LOWER(role) = 'student' LIMIT 1");
+    $testStudent = $stmtTest->fetch(PDO::FETCH_ASSOC);
+    if ($testStudent) {
+        $_SESSION['user_id'] = $testStudent['user_id'];
+        $_SESSION['role'] = 'student';
+        $_SESSION['full_name'] = $testStudent['name'];
+    }
+}
+
 if (empty($_SESSION['user_id']) || strtolower($_SESSION['role'] ?? '') !== 'student') {
     header('Location: auth/login.php');
     exit;

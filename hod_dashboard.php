@@ -33,11 +33,8 @@ init_hod_tables();
 // Ensure user is authorized
 $role = strtolower($_SESSION['role'] ?? '');
 if (empty($_SESSION['user_id']) || !in_array($role, ['hod', 'gfm', 'admin'])) {
-    // DEVELOPMENT BYPASS: Auto-login as HOD for direct URL access
-    $_SESSION['user_id'] = 999;
-    $_SESSION['role'] = 'hod';
-    $_SESSION['full_name'] = 'Demo HOD';
-    $_SESSION['department'] = 'Electronics and Computer Engineering';
+    header('Location: auth/login.php');
+    exit;
 }
 
 $hod_id = (int)$_SESSION['user_id'];
@@ -45,7 +42,7 @@ $hod_name = $_SESSION['full_name'] ?? 'HOD / GFM';
 
 $stmtDept = $pdo->prepare("SELECT department FROM users WHERE user_id = ?");
 $stmtDept->execute([$hod_id]);
-$hod_department = $stmtDept->fetchColumn() ?: $_SESSION['department'] ?? 'Electronics and Computer Engineering';
+$hod_department = $stmtDept->fetchColumn() ?: '';
 
 $view = $_GET['view'] ?? 'dashboard';
 $message = '';
@@ -474,6 +471,11 @@ if ($view === 'cumulative_report' && isset($_GET['cid'])) {
       position: relative;
     }
 
+    /* ================= UTILITIES ================= */
+    .d-flex { display: flex; }
+    .align-items-center { align-items: center; }
+    .gap-3 { gap: 1rem; }
+
     /* ================= SIDEBAR ================= */
     .sidebar {
       width: 260px;
@@ -482,6 +484,10 @@ if ($view === 'cumulative_report' && isset($_GET['cid'])) {
       display: flex; flex-direction: column;
       padding: 2rem 0;
       z-index: 10;
+      transition: margin-left 0.3s ease;
+    }
+    .sidebar.collapsed {
+        margin-left: -260px;
     }
     .sidebar-header {
       padding: 0 2rem 2rem;
@@ -548,6 +554,50 @@ if ($view === 'cumulative_report' && isset($_GET['cid'])) {
       width: 32px; height: 32px; border-radius: 50%;
       background: var(--pastel-orange); color: #c2410c;
       display: flex; align-items: center; justify-content: center;
+    }
+    
+    .profile-dropdown {
+      position: absolute;
+      top: calc(100% + 0.5rem);
+      right: 0;
+      background: #fff;
+      border: 1px solid var(--border-color);
+      border-radius: var(--radius-md);
+      box-shadow: var(--shadow-app);
+      min-width: 180px;
+      display: flex;
+      flex-direction: column;
+      padding: 0.5rem;
+      opacity: 0;
+      visibility: hidden;
+      transform: translateY(-10px);
+      transition: all 0.2s ease;
+      z-index: 1000;
+    }
+    .profile-dropdown.show {
+      opacity: 1;
+      visibility: visible;
+      transform: translateY(0);
+    }
+    .profile-dropdown a {
+      padding: 0.75rem 1rem;
+      color: var(--text-main);
+      font-size: 0.9rem;
+      font-weight: 500;
+      border-radius: var(--radius-sm);
+      display: flex;
+      align-items: center;
+      gap: 0.75rem;
+      transition: background 0.2s;
+    }
+    .profile-dropdown a:hover {
+      background: #f8fafc;
+      color: #0ea5e9;
+    }
+    .profile-dropdown .dropdown-divider {
+      height: 1px;
+      background: var(--border-color);
+      margin: 0.5rem 0;
     }
     
     .main-content { padding: 0 2.5rem 2.5rem; flex: 1; display: flex; flex-direction: column; gap: 2rem; max-width: 1400px; margin: 0 auto; width: 100%;}
@@ -680,7 +730,7 @@ if ($view === 'cumulative_report' && isset($_GET['cid'])) {
     @media (max-width: 1024px) {
         body { padding: 0; }
         .app-wrapper { height: 100vh; border-radius: 0; min-height: 100vh; }
-        .sidebar { position: fixed; transform: translateX(-100%); transition: transform 0.3s; z-index: 200; height: 100vh;}
+        .sidebar { position: fixed; transform: translateX(-100%); transition: transform 0.3s; z-index: 200; height: 100vh; margin-left: 0; }
         .sidebar.show { transform: translateX(0); }
         .main-content { padding: 1.5rem; }
     }
@@ -747,13 +797,19 @@ if ($view === 'cumulative_report' && isset($_GET['cid'])) {
     <div class="content-wrapper">
         <header class="top-navbar">
             <div class="d-flex align-items-center gap-3">
-
+                <button class="btn btn-outline" id="sidebarToggle" style="padding: 0.4rem 0.8rem; border-radius: 8px;"><i class="fa-solid fa-bars"></i></button>
             </div>
 
-            <div style="display: flex; align-items: center; gap: 1rem;">
-                <div class="user-profile-badge">
+            <div style="display: flex; align-items: center; gap: 1rem; position: relative;">
+                <div class="user-profile-badge" id="profileDropdownBtn">
                     <div class="avatar"><?php echo strtoupper(substr($hod_name, 0, 1)); ?></div>
                     <span style="padding-right: 0.5rem;"><?php echo htmlspecialchars($hod_name); ?> <i class="fa-solid fa-chevron-down ms-1" style="font-size: 0.7rem; color: #999;"></i></span>
+                </div>
+                
+                <div class="profile-dropdown" id="profileDropdown">
+                    <a href="?view=profile"><i class="fa-solid fa-user"></i> My Profile</a>
+                    <div class="dropdown-divider"></div>
+                    <a href="auth/logout.php" style="color: #ef4444;"><i class="fa-solid fa-power-off"></i> Logout</a>
                 </div>
             </div>
         </header>
@@ -1453,14 +1509,36 @@ if ($view === 'cumulative_report' && isset($_GET['cid'])) {
 
 <script>
 document.addEventListener("DOMContentLoaded", () => {
-    // 1. Sidebar Toggle (Mobile)
+    // 1. Sidebar Toggle
     const sidebarToggle = document.getElementById('sidebarToggle');
     const erpSidebar = document.getElementById('erpSidebar');
 
     if (sidebarToggle && erpSidebar) {
       sidebarToggle.addEventListener('click', () => {
-        erpSidebar.classList.toggle('show');
+        if (window.innerWidth <= 1024) {
+            erpSidebar.classList.toggle('show');
+        } else {
+            erpSidebar.classList.toggle('collapsed');
+        }
       });
+    }
+
+    // Profile Dropdown Toggle
+    const profileBtn = document.getElementById('profileDropdownBtn');
+    const profileDropdown = document.getElementById('profileDropdown');
+    
+    if (profileBtn && profileDropdown) {
+        profileBtn.addEventListener('click', (e) => {
+            e.stopPropagation();
+            profileDropdown.classList.toggle('show');
+        });
+
+        // Close dropdown when clicking outside
+        document.addEventListener('click', (e) => {
+            if (!profileBtn.contains(e.target) && !profileDropdown.contains(e.target)) {
+                profileDropdown.classList.remove('show');
+            }
+        });
     }
 
     // 2. Live Clock

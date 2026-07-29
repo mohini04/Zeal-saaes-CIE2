@@ -258,6 +258,11 @@ if ($view === 'class_report' && $fid > 0 && $cid > 0) {
       position: relative;
     }
 
+    /* ================= UTILITIES ================= */
+    .d-flex { display: flex; }
+    .align-items-center { align-items: center; }
+    .gap-3 { gap: 1rem; }
+
     /* ================= SIDEBAR ================= */
     .sidebar {
       width: 260px;
@@ -266,6 +271,10 @@ if ($view === 'class_report' && $fid > 0 && $cid > 0) {
       display: flex; flex-direction: column;
       padding: 2rem 0;
       z-index: 10;
+      transition: margin-left 0.3s ease;
+    }
+    .sidebar.collapsed {
+        margin-left: -260px;
     }
     .sidebar-header {
       padding: 0 2rem 2rem;
@@ -332,6 +341,50 @@ if ($view === 'class_report' && $fid > 0 && $cid > 0) {
       width: 32px; height: 32px; border-radius: 50%;
       background: var(--pastel-orange); color: #c2410c;
       display: flex; align-items: center; justify-content: center;
+    }
+    
+    .profile-dropdown {
+      position: absolute;
+      top: calc(100% + 0.5rem);
+      right: 0;
+      background: #fff;
+      border: 1px solid var(--border-color);
+      border-radius: var(--radius-md);
+      box-shadow: var(--shadow-app);
+      min-width: 180px;
+      display: flex;
+      flex-direction: column;
+      padding: 0.5rem;
+      opacity: 0;
+      visibility: hidden;
+      transform: translateY(-10px);
+      transition: all 0.2s ease;
+      z-index: 1000;
+    }
+    .profile-dropdown.show {
+      opacity: 1;
+      visibility: visible;
+      transform: translateY(0);
+    }
+    .profile-dropdown a {
+      padding: 0.75rem 1rem;
+      color: var(--text-main);
+      font-size: 0.9rem;
+      font-weight: 500;
+      border-radius: var(--radius-sm);
+      display: flex;
+      align-items: center;
+      gap: 0.75rem;
+      transition: background 0.2s;
+    }
+    .profile-dropdown a:hover {
+      background: #f8fafc;
+      color: #0ea5e9;
+    }
+    .profile-dropdown .dropdown-divider {
+      height: 1px;
+      background: var(--border-color);
+      margin: 0.5rem 0;
     }
     
     .main-content { padding: 0 2.5rem 2.5rem; flex: 1; display: flex; flex-direction: column; gap: 2rem; max-width: 1400px; margin: 0 auto; width: 100%;}
@@ -452,7 +505,7 @@ if ($view === 'class_report' && $fid > 0 && $cid > 0) {
     @media (max-width: 1024px) {
         body { padding: 0; }
         .app-wrapper { height: 100vh; border-radius: 0; min-height: 100vh; }
-        .sidebar { position: fixed; transform: translateX(-100%); transition: transform 0.3s; z-index: 200; height: 100vh;}
+        .sidebar { position: fixed; transform: translateX(-100%); transition: transform 0.3s; z-index: 200; height: 100vh; margin-left: 0; }
         .sidebar.show { transform: translateX(0); }
         .main-content { padding: 1.5rem; }
     }
@@ -513,13 +566,19 @@ if ($view === 'class_report' && $fid > 0 && $cid > 0) {
     <div class="content-wrapper">
         <header class="top-navbar">
             <div class="d-flex align-items-center gap-3">
-
+                <button class="btn btn-outline" id="sidebarToggle" style="padding: 0.4rem 0.8rem; border-radius: 8px;"><i class="fa-solid fa-bars"></i></button>
             </div>
 
-            <div style="display: flex; align-items: center; gap: 1rem;">
-                <div class="user-profile-badge">
+            <div style="display: flex; align-items: center; gap: 1rem; position: relative;">
+                <div class="user-profile-badge" id="profileDropdownBtn">
                     <div class="avatar"><?php echo strtoupper(substr($gfmName, 0, 1)); ?></div>
                     <span style="padding-right: 0.5rem;"><?php echo htmlspecialchars($gfmName); ?> <i class="fa-solid fa-chevron-down ms-1" style="font-size: 0.7rem; color: #999;"></i></span>
+                </div>
+                
+                <div class="profile-dropdown" id="profileDropdown">
+                    <a href="?view=profile"><i class="fa-solid fa-user"></i> My Profile</a>
+                    <div class="dropdown-divider"></div>
+                    <a href="auth/logout.php" style="color: #ef4444;"><i class="fa-solid fa-power-off"></i> Logout</a>
                 </div>
             </div>
         </header>
@@ -910,6 +969,38 @@ if ($view === 'class_report' && $fid > 0 && $cid > 0) {
                     </div>
                 </div>
             </div>
+            
+        <!-- VIEW 5: PROFILE SECTION -->
+        <?php elseif ($view === 'profile'): ?>
+            <div class="page-title-section" style="margin-bottom: 1.5rem;">
+                <h1 class="page-title">My Profile</h1>
+                <p class="page-subtitle">View professional information.</p>
+            </div>
+            
+            <div class="module-card" style="max-width: 800px; padding: 3rem;">
+                <div style="display:flex; gap: 2rem; align-items:flex-start; flex-wrap: wrap;">
+                    <div style="flex-shrink:0;">
+                        <div style="width:120px; height:120px; border-radius: 50%; background-color:#f1f5f9; display:flex; align-items:center; justify-content:center; font-size:4rem; color: #0ea5e9;">
+                            <i class="fa-solid fa-user"></i>
+                        </div>
+                    </div>
+                    <div style="flex:1;">
+                        <h2 style="font-size:1.8rem; font-weight: 700; color:var(--text-main); margin-bottom: 0.2rem;"><?= htmlspecialchars($gfmName) ?></h2>
+                        <p style="color:var(--text-muted); font-size:1rem; font-weight:500; margin-bottom: 1.5rem;">GFM (Guardian Faculty Member)</p>
+                        
+                        <div style="display:grid; grid-template-columns:1fr 1fr; gap:1.5rem; border-top: 1px solid var(--border-color); padding-top: 1.5rem;">
+                            <div>
+                                <strong style="display:block; margin-bottom:0.25rem; font-size:0.85rem; color:var(--text-muted); text-transform: uppercase; letter-spacing: 0.05em;">Account Role</strong>
+                                <span class="sys-tag accent" style="font-size: 0.85rem;"><?= strtoupper($role) ?></span>
+                            </div>
+                            <div>
+                                <strong style="display:block; margin-bottom:0.25rem; font-size:0.85rem; color:var(--text-muted); text-transform: uppercase; letter-spacing: 0.05em;">Department</strong>
+                                <span style="font-size: 0.9rem; font-weight: 500; color: var(--text-main);"><?= htmlspecialchars($deptName) ?></span>
+                            </div>
+                        </div>
+                    </div>
+                </div>
+            </div>
         <?php endif; ?>
 
         </main>
@@ -918,14 +1009,36 @@ if ($view === 'class_report' && $fid > 0 && $cid > 0) {
 
 <script>
 document.addEventListener("DOMContentLoaded", () => {
-    // 1. Sidebar Toggle (Mobile)
+    // 1. Sidebar Toggle
     const sidebarToggle = document.getElementById('sidebarToggle');
     const erpSidebar = document.getElementById('erpSidebar');
 
     if (sidebarToggle && erpSidebar) {
       sidebarToggle.addEventListener('click', () => {
-        erpSidebar.classList.toggle('show');
+        if (window.innerWidth <= 1024) {
+            erpSidebar.classList.toggle('show');
+        } else {
+            erpSidebar.classList.toggle('collapsed');
+        }
       });
+    }
+
+    // Profile Dropdown Toggle
+    const profileBtn = document.getElementById('profileDropdownBtn');
+    const profileDropdown = document.getElementById('profileDropdown');
+    
+    if (profileBtn && profileDropdown) {
+        profileBtn.addEventListener('click', (e) => {
+            e.stopPropagation();
+            profileDropdown.classList.toggle('show');
+        });
+
+        // Close dropdown when clicking outside
+        document.addEventListener('click', (e) => {
+            if (!profileBtn.contains(e.target) && !profileDropdown.contains(e.target)) {
+                profileDropdown.classList.remove('show');
+            }
+        });
     }
 
     // 2. Live Clock

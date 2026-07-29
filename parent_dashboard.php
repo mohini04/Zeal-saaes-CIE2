@@ -1891,10 +1891,6 @@ if ($wardStudent) {
                                 </div>
                                 <div class="profile-dropdown-divider"></div>
                             <?php endif; ?>
-                            <a href="#exportTable" class="profile-dropdown-item" onclick="scrollToPerformanceSummary(event)">
-                                <i class="fa-solid fa-chart-pie"></i>
-                                <span>Performance Summary</span>
-                            </a>
                             <a href="javascript:void(0)" class="profile-dropdown-item" onclick="exportPDF(); closeProfileDropdown();">
                                 <i class="fa-solid fa-file-pdf"></i>
                                 <span>Download PDF Report</span>

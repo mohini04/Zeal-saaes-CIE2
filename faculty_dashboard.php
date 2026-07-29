@@ -1391,6 +1391,7 @@ foreach($activities as $a) {
                                 <td><span style="font-size: 0.85rem; color: var(--text-muted);"><?php echo date('d M Y', strtotime($act['deadline'])); ?></span></td>
                                 <td>
                                     <div style="display: flex; gap: 0.4rem;">
+                                        <a href="<?php echo $view_url; ?>" class="btn btn-outline" style="padding: 0.3rem 0.6rem; font-size: 0.75rem;">View</a>
                                         <button class="btn btn-outline" style="padding: 0.3rem 0.6rem; font-size: 0.75rem;" onclick="openEditModal(<?php echo $act_json; ?>)">Edit</button>
                                         <form action="faculty_dashboard.php?view=recreate" method="POST" style="display: inline;" onsubmit="return confirm('Recreate this activity?');">
                                             <input type="hidden" name="action" value="recreate">
