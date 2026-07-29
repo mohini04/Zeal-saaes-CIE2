@@ -271,7 +271,8 @@ function get_type_meta($type) {
         'ppt' => ['name' => 'PPT Presentation', 'color' => '#2563eb'],
         'case_study' => ['name' => 'Case Study', 'color' => '#2563eb'],
         'gd' => ['name' => 'Group Discussion', 'color' => '#2563eb'],
-        'mini_project' => ['name' => 'Mini Project', 'color' => '#2563eb']
+        'mini_project' => ['name' => 'Mini Project', 'color' => '#2563eb'],
+        'other' => ['name' => 'Other', 'color' => '#6b7280']
     ];
     return $type_map[$type] ?? ['name' => ucfirst($type), 'color' => '#2563eb'];
 }
@@ -311,6 +312,12 @@ function get_activity_by_id($id) {
 
 function add_new_activity($data) {
     global $pdo;
+    
+    // Ensure metadata column exists
+    try {
+        $pdo->exec("ALTER TABLE activities ADD COLUMN metadata JSON NULL");
+    } catch (PDOException $e) {}
+
     $tid = empty($data['target_id']) ? null : (int)$data['target_id'];
     $ttype = !empty($tid) ? 'class' : ($data['target_type'] ?? 'class');
     $fac_id = (int)($_SESSION['user_id'] ?? 0); 
@@ -320,13 +327,18 @@ function add_new_activity($data) {
         $mysql_date .= ':00'; 
     }
 
+    $metadata_json = null;
+    if (!empty($data['metadata'])) {
+        $metadata_json = json_encode($data['metadata']);
+    }
+
     try {
-        $stmt = $pdo->prepare("INSERT INTO activities (faculty_id, title, type, course, subject, unit, batch, due_date, max_marks, status, description, target_type, target_id) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, 'Active', ?, ?, ?)");
+        $stmt = $pdo->prepare("INSERT INTO activities (faculty_id, title, type, course, subject, unit, batch, due_date, max_marks, status, description, target_type, target_id, metadata) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, 'Active', ?, ?, ?, ?)");
         $stmt->execute([
             $fac_id,
             $data['title'], $data['type'], $data['course'], $data['subject'], $data['unit'], 
             $data['batch'], $mysql_date, $data['total_marks'], $data['description'], 
-            $ttype, $tid
+            $ttype, $tid, $metadata_json
         ]);
         return $pdo->lastInsertId();
     } catch (PDOException $e) { 
@@ -344,12 +356,17 @@ function update_activity($id, $data) {
         $mysql_date .= ':00'; 
     }
 
+    $metadata_json = null;
+    if (!empty($data['metadata'])) {
+        $metadata_json = json_encode($data['metadata']);
+    }
+
     try {
-        $stmt = $pdo->prepare("UPDATE activities SET title = ?, type = ?, course = ?, subject = ?, unit = ?, batch = ?, due_date = ?, max_marks = ?, description = ?, target_type = ?, target_id = ? WHERE activity_id = ?");
+        $stmt = $pdo->prepare("UPDATE activities SET title = ?, type = ?, course = ?, subject = ?, unit = ?, batch = ?, due_date = ?, max_marks = ?, description = ?, target_type = ?, target_id = ?, metadata = ? WHERE activity_id = ?");
         $stmt->execute([
             $data['title'], $data['type'], $data['course'], $data['subject'], $data['unit'], 
             $data['batch'], $mysql_date, $data['total_marks'], $data['description'], 
-            $ttype, $tid, (int)$id
+            $ttype, $tid, $metadata_json, (int)$id
         ]);
         return true;
     } catch (PDOException $e) {
@@ -387,29 +404,37 @@ $success_message = '';
 if ($_SERVER['REQUEST_METHOD'] === 'POST' && isset($_POST['action'])) {
     $action = $_POST['action'];
 
-    if ($action === 'create_activity') {
-        $new_id = add_new_activity([
-            'title' => trim($_POST['title']),
-            'type' => trim($_POST['type']),
-            'course' => trim($_POST['course']),
-            'subject' => trim($_POST['subject']),
-            'unit' => trim($_POST['unit']),
-            'batch' => trim($_POST['batch']),
-            'deadline' => trim($_POST['deadline']),
-            'total_marks' => (int)$_POST['total_marks'],
-            'description' => trim($_POST['description']),
-            'target_type' => trim($_POST['target_type'] ?? 'all'),
-            'target_id' => $_POST['target_id'] ?? null
-        ]);
-        if (is_numeric($new_id) && $new_id > 0) {
-            header("Location: faculty_dashboard.php?view=" . trim($_POST['type']) . "&id=" . $new_id);
-            exit;
-        } else {
-            $message = "Failed to save: " . $new_id;
+    if ($action === 'create_activity' || $action === 'edit_activity') {
+        $metadata = [];
+        if ($_POST['type'] === 'quiz' && isset($_POST['quiz_question'])) {
+            $questions = [];
+            foreach($_POST['quiz_question'] as $idx => $q) {
+                if(trim($q) !== '') {
+                    $questions[] = [
+                        'question' => $q,
+                        'opt_a' => $_POST['quiz_opt_a'][$idx] ?? '',
+                        'opt_b' => $_POST['quiz_opt_b'][$idx] ?? '',
+                        'opt_c' => $_POST['quiz_opt_c'][$idx] ?? '',
+                        'opt_d' => $_POST['quiz_opt_d'][$idx] ?? '',
+                        'correct' => $_POST['quiz_correct'][$idx] ?? 'A'
+                    ];
+                }
+            }
+            $metadata['questions'] = $questions;
+        } elseif ($_POST['type'] === 'gd' && isset($_POST['gd_group'])) {
+            $groups = [];
+            foreach($_POST['gd_group'] as $idx => $g) {
+                if(trim($g) !== '') {
+                    $groups[] = [
+                        'group' => $g,
+                        'topic' => $_POST['gd_topic'][$idx] ?? ''
+                    ];
+                }
+            }
+            $metadata['groups'] = $groups;
         }
-    } elseif ($action === 'edit_activity') {
-        $edit_id = (int)$_POST['activity_id'];
-        if (update_activity($edit_id, [
+        
+        $activity_data = [
             'title' => trim($_POST['title']),
             'type' => trim($_POST['type']),
             'course' => trim($_POST['course']),
@@ -420,11 +445,25 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST' && isset($_POST['action'])) {
             'total_marks' => (int)$_POST['total_marks'],
             'description' => trim($_POST['description']),
             'target_type' => trim($_POST['target_type'] ?? 'all'),
-            'target_id' => $_POST['target_id'] ?? null
-        ])) {
-            $success_message = "Activity updated successfully!";
-        } else {
-            $message = "Error updating activity. Please check input formats.";
+            'target_id' => $_POST['target_id'] ?? null,
+            'metadata' => $metadata
+        ];
+
+        if ($action === 'create_activity') {
+            $new_id = add_new_activity($activity_data);
+            if (is_numeric($new_id) && $new_id > 0) {
+                header("Location: faculty_dashboard.php?view=" . trim($_POST['type']) . "&id=" . $new_id);
+                exit;
+            } else {
+                $message = "Failed to save: " . $new_id;
+            }
+        } elseif ($action === 'edit_activity') {
+            $edit_id = (int)$_POST['activity_id'];
+            if (update_activity($edit_id, $activity_data)) {
+                $success_message = "Activity updated successfully!";
+            } else {
+                $message = "Error updating activity. Please check input formats.";
+            }
         }
     } elseif ($action === 'delete_activity') {
         if (delete_activity((int)$_POST['activity_id'])) {
@@ -447,9 +486,7 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST' && isset($_POST['action'])) {
         } else {
             $message = "Failed to update grade.";
         }
-    } elseif ($action === 'autofill_deduction') {
-        $rate = (int)$_POST['deduction_rate'];
-        $success_message = "Autofilled scores across all activities with {$rate}% deduction rate per day for late submissions!";
+
     } elseif ($action === 'add_students_to_class') {
         $message = "Manual PRN mapping is deprecated. Students are auto-enrolled via global cohorts.";
     } elseif ($action === 'remove_student_from_class') {
@@ -469,7 +506,7 @@ $faculty_classes = get_faculty_classes($faculty_id);
 $activities = get_all_activities();
 $current_activity = get_activity_by_id($id);
 if (!$current_activity && !empty($activities)) {
-    if (in_array($view, ['quiz', 'poster_making', 'ppt', 'case_study', 'gd', 'mini_project'])) {
+    if (in_array($view, ['quiz', 'poster_making', 'ppt', 'case_study', 'gd', 'mini_project', 'other'])) {
         $matching = array_values(array_filter($activities, function($a) use ($view) {
             return strtolower($a['type']) === strtolower($view);
         }));
@@ -495,212 +532,288 @@ foreach($activities as $a) {
     <title>Faculty Dashboard | SAAES</title>
     
     <!-- Clean Academic Fonts -->
-    <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700&display=swap" rel="stylesheet">
+    <link href="https://fonts.googleapis.com/css2?family=Outfit:wght@400;500;600;700;800&family=Inter:wght@400;500;600;700&display=swap" rel="stylesheet">
     <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.4.0/css/all.min.css">
     
     <style>
-    /* ==========================================================================
-       TRADITIONAL ACADEMIC DESIGN SYSTEM
-       ========================================================================== */
     :root {
-      --bg-base: #f8fafc;
-      --bg-card: #ffffff;
-      --navy-primary: #0f172a;
-      --blue-accent: #2563eb;
-      --text-main: #1e293b;
-      --text-muted: #64748b;
-      --border-color: #e2e8f0;
+      /* Bright White Theme - Clean & Professional Light Mode */
+      --bg-base: #FFFFFF;
+      --bg-glass: rgba(255, 255, 255, 0.75);
+      --bg-card: rgba(248, 250, 252, 0.9);
+      --navy-primary: #0F172A;
+      --blue-accent: #4F46E5; /* Indigo */
+      --blue-gradient: linear-gradient(135deg, #8B5CF6 0%, #4F46E5 100%);
+      --text-main: #1E293B;
+      --text-muted: #64748B;
+      --border-color: rgba(0, 0, 0, 0.08);
+      --border-solid: rgba(79, 70, 229, 0.2);
       
-      --success: #10b981;
-      --danger: #ef4444;
-      --warning: #f59e0b;
+      --success: #10B981;
+      --danger: #F43F5E;
+      --warning: #F59E0B;
       
-      --radius-md: 8px;
-      --radius-lg: 12px;
-      --shadow-sm: 0 1px 3px rgba(0,0,0,0.1);
-      --shadow-md: 0 4px 6px -1px rgba(0,0,0,0.1);
+      --radius-md: 12px;
+      --radius-lg: 20px;
       
-      --font-main: 'Inter', system-ui, -apple-system, sans-serif;
+      --shadow-glass: 0 8px 32px 0 rgba(0, 0, 0, 0.3);
+      --shadow-hover: 0 12px 40px 0 rgba(34, 211, 238, 0.15);
+      
+      --font-main: 'Outfit', 'Inter', system-ui, -apple-system, sans-serif;
     }
 
     * { margin: 0; padding: 0; box-sizing: border-box; }
     
     body {
       font-family: var(--font-main);
-      background-color: var(--bg-base);
+      background: var(--bg-base);
+      /* Subtle dark mesh gradient */
+      background-image: 
+        radial-gradient(circle at 15% 50%, rgba(139, 92, 246, 0.15), transparent 25%),
+        radial-gradient(circle at 85% 30%, rgba(34, 211, 238, 0.15), transparent 25%);
       color: var(--text-main);
       min-height: 100vh;
       display: flex;
       flex-direction: column;
-      line-height: 1.5;
+      line-height: 1.6;
       -webkit-font-smoothing: antialiased;
+      background-attachment: fixed;
     }
 
-    ::selection { background: var(--blue-accent); color: #fff; }
+    ::selection { background: var(--blue-accent); color: #0B1120; }
     a { text-decoration: none; color: inherit; }
 
     .app-container { display: flex; min-height: 100vh; width: 100%; position: relative;}
 
     /* ================= SIDEBAR ================= */
     .sidebar {
-      width: 260px;
-      background: var(--bg-card);
+      width: 280px;
+      background: transparent;
+      backdrop-filter: blur(20px);
       border-right: 1px solid var(--border-color);
       display: flex; flex-direction: column;
       position: fixed; top: 0; bottom: 0; left: 0; z-index: 200;
+      box-shadow: 4px 0 24px rgba(0,0,0,0.05);
     }
     .sidebar-header {
-      padding: 1.5rem; border-bottom: 1px solid var(--border-color);
+      padding: 2rem 1.5rem; border-bottom: 1px solid var(--border-color);
       display: flex; align-items: center; gap: 0.75rem;
     }
     .brand-logo {
       display: flex; align-items: center; gap: 0.75rem;
-      font-weight: 700; font-size: 1.25rem; color: var(--navy-primary);
+      font-weight: 800; font-size: 1.3rem; color: var(--navy-primary);
+      letter-spacing: -0.01em;
     }
-    .brand-logo i { color: var(--blue-accent); font-size: 1.4rem; }
+    .brand-logo i { 
+        background: var(--blue-gradient); 
+        -webkit-background-clip: text; 
+        -webkit-text-fill-color: transparent; 
+        font-size: 1.6rem; 
+        filter: drop-shadow(0 0 8px rgba(34, 211, 238, 0.4));
+    }
     
-    .sidebar-menu { padding: 1.5rem 1rem; display: flex; flex-direction: column; gap: 0.25rem; flex: 1; overflow-y: auto; }
-    .menu-label { font-size: 0.75rem; color: var(--text-muted); margin: 1.5rem 0.5rem 0.5rem; font-weight: 600; text-transform: uppercase; letter-spacing: 0.05em;}
+    .sidebar-menu { padding: 1.5rem 1.25rem; display: flex; flex-direction: column; gap: 0.5rem; flex: 1; overflow-y: auto; }
+    .menu-label { font-size: 0.75rem; color: var(--blue-accent); margin: 1.25rem 0.5rem 0.5rem; font-weight: 800; text-transform: uppercase; letter-spacing: 0.15em; opacity: 0.9;}
     
     .sidebar-link {
-      display: flex; align-items: center; gap: 0.75rem; padding: 0.65rem 1rem;
-      color: var(--text-main); font-weight: 500; font-size: 0.9rem; border-radius: var(--radius-md);
-      transition: all 0.2s ease;
+      display: flex; align-items: center; gap: 1rem; padding: 0.85rem 1rem;
+      color: var(--text-muted); font-weight: 600; font-size: 0.95rem; border-radius: var(--radius-md);
+      transition: all 0.3s cubic-bezier(0.4, 0, 0.2, 1);
     }
-    .sidebar-link:hover { background: #f1f5f9; color: var(--blue-accent); }
+    .sidebar-link:hover { 
+      background: rgba(34, 211, 238, 0.05); 
+      color: var(--blue-accent); 
+      transform: translateX(6px);
+    }
     .sidebar-link.active {
-      background: #eff6ff; color: var(--blue-accent); font-weight: 600;
+      background: var(--blue-gradient); color: #FFFFFF; font-weight: 700;
+      box-shadow: 0 4px 15px rgba(79, 70, 229, 0.3);
+      transform: scale(1.02);
     }
-    .sidebar-link i { font-size: 1rem; width: 20px; text-align: center; color: var(--text-muted); }
-    .sidebar-link.active i, .sidebar-link:hover i { color: var(--blue-accent); }
+    .sidebar-link i { font-size: 1.15rem; width: 24px; text-align: center; transition: all 0.3s ease;}
+    .sidebar-link.active i { color: #FFFFFF; }
+    .sidebar-link:hover:not(.active) i { color: var(--blue-accent); transform: scale(1.1); }
 
     .sidebar-user {
-      padding: 1.25rem; border-top: 1px solid var(--border-color);
-      display: flex; align-items: center; gap: 0.75rem; background: var(--bg-card);
+      padding: 1.5rem; border-top: 1px solid var(--border-color);
+      display: flex; align-items: center; gap: 1rem; background: transparent;
     }
     .avatar {
-      width: 36px; height: 36px; background: #f1f5f9; border-radius: 50%;
+      width: 44px; height: 44px; 
+      background: var(--blue-gradient);
+      border-radius: 50%;
       display: flex; align-items: center; justify-content: center;
-      font-weight: 600; font-size: 1rem; color: var(--navy-primary);
+      font-weight: 800; font-size: 1.2rem; color: #0B1120;
+      box-shadow: 0 4px 12px rgba(34, 211, 238, 0.25);
     }
 
     /* ================= MAIN CONTENT ================= */
-    .content-wrapper { margin-left: 260px; flex: 1; display: flex; flex-direction: column; min-height: 100vh;}
+    .content-wrapper { margin-left: 280px; flex: 1; display: flex; flex-direction: column; min-height: 100vh;}
     
     .top-navbar {
-      background: var(--bg-card); border-bottom: 1px solid var(--border-color); padding: 0 2rem;
+      background: var(--bg-glass); backdrop-filter: blur(16px);
+      border-bottom: 1px solid var(--border-color); padding: 0 2rem;
       display: flex; justify-content: space-between; align-items: center;
-      position: sticky; top: 0; z-index: 100; height: 70px;
+      position: sticky; top: 0; z-index: 100; height: 80px;
+      box-shadow: 0 4px 20px rgba(0,0,0,0.2);
     }
-    .top-navbar h3 { font-weight: 600; font-size: 1.1rem; color: var(--navy-primary); margin: 0; }
+    .top-navbar h3 { font-weight: 800; font-size: 1.3rem; color: var(--navy-primary); margin: 0; }
     
-    .main-content { padding: 2rem; flex: 1; max-width: 1400px; width: 100%; margin: 0 auto; display: flex; flex-direction: column; gap: 1.5rem; }
+    .main-content { padding: 2.5rem; flex: 1; max-width: 1400px; width: 100%; margin: 0 auto; display: flex; flex-direction: column; gap: 2rem; }
 
     /* ================= MODULE CARDS ================= */
     .module-card {
-      background: var(--bg-card); border: 1px solid var(--border-color);
-      padding: 1.5rem 2rem; border-radius: var(--radius-lg); box-shadow: var(--shadow-sm); 
+      background: var(--bg-card); backdrop-filter: blur(16px);
+      border: 1px solid var(--border-color);
+      padding: 2rem; border-radius: var(--radius-lg); box-shadow: var(--shadow-glass); 
     }
     
     .hero-banner {
-      background: linear-gradient(135deg, var(--navy-primary), #1e3a8a); color: #fff;
-      padding: 2.5rem 3rem; border-radius: var(--radius-lg); box-shadow: var(--shadow-md);
+      background: var(--blue-gradient); color: #0B1120;
+      padding: 3rem; border-radius: var(--radius-lg); box-shadow: 0 10px 30px rgba(34, 211, 238, 0.2);
+      position: relative; overflow: hidden;
     }
-    .hero-content { display: flex; justify-content: space-between; align-items: center; flex-wrap: wrap; gap: 1.5rem; }
-    .hero-title { font-size: 1.75rem; font-weight: 700; margin-bottom: 0.5rem; }
-    .hero-subtitle { color: #e2e8f0; font-size: 0.95rem; margin: 0; }
+    .hero-banner::after {
+      content: ''; position: absolute; top: -50%; right: -10%; width: 400px; height: 400px;
+      background: radial-gradient(circle, rgba(255,255,255,0.3) 0%, transparent 70%);
+      border-radius: 50%; mix-blend-mode: overlay;
+    }
+    .hero-content { display: flex; justify-content: space-between; align-items: center; flex-wrap: wrap; gap: 1.5rem; position: relative; z-index: 2;}
+    .hero-title { font-size: 2.5rem; font-weight: 800; margin-bottom: 0.5rem; letter-spacing: -0.03em;}
+    .hero-subtitle { color: rgba(11, 17, 32, 0.8); font-size: 1.1rem; margin: 0; font-weight: 600;}
 
     /* ================= STATS GRID ================= */
-    .stats-grid { display: grid; grid-template-columns: repeat(auto-fit, minmax(200px, 1fr)); gap: 1.5rem; margin-bottom: 1rem;}
-    .stat-block { background: var(--bg-card); border: 1px solid var(--border-color); border-radius: var(--radius-lg); padding: 1.5rem; display: flex; flex-direction: column; justify-content: center; box-shadow: var(--shadow-sm); }
-    .stat-val { font-size: 2.25rem; font-weight: 700; color: var(--navy-primary); line-height: 1; margin-bottom: 0.5rem; }
-    .stat-label { font-size: 0.85rem; font-weight: 600; color: var(--text-muted); text-transform: uppercase; letter-spacing: 0.05em;}
+    .stats-grid { display: grid; grid-template-columns: repeat(auto-fit, minmax(220px, 1fr)); gap: 1.5rem; margin-bottom: 0.5rem;}
+    .stat-block { 
+        background: var(--bg-card); backdrop-filter: blur(16px);
+        border: 1px solid var(--border-color); border-radius: var(--radius-lg); 
+        padding: 1.75rem; display: flex; flex-direction: column; justify-content: center; 
+        box-shadow: var(--shadow-glass);
+        transition: all 0.4s cubic-bezier(0.175, 0.885, 0.32, 1.275);
+    }
+    .stat-block:hover {
+        transform: translateY(-8px) scale(1.02);
+        box-shadow: var(--shadow-hover);
+        border-color: rgba(34, 211, 238, 0.3);
+    }
+    .stat-val { font-size: 2.75rem; font-weight: 800; color: var(--navy-primary); line-height: 1; margin-bottom: 0.75rem; text-shadow: 0 0 15px rgba(255,255,255,0.1); }
+    .stat-label { font-size: 0.85rem; font-weight: 800; color: var(--blue-accent); text-transform: uppercase; letter-spacing: 0.1em;}
 
     /* ================= TAGS / BADGES ================= */
-    .sys-tag { font-size: 0.75rem; font-weight: 600; padding: 0.25rem 0.6rem; border-radius: 999px; display: inline-flex; align-items: center; gap: 0.4rem; background: #f1f5f9; color: var(--text-muted); }
-    .sys-tag.accent { background: #eff6ff; color: var(--blue-accent); }
-    .sys-tag.success { background: #dcfce7; color: var(--success); }
-    .sys-tag.danger { background: #fee2e2; color: var(--danger); }
-    .sys-tag.warning { background: #fef3c7; color: var(--warning); }
-    .sys-tag.info { background: #e0f2fe; color: #0284c7; }
+    .sys-tag { font-size: 0.75rem; font-weight: 800; padding: 0.4rem 0.85rem; border-radius: 999px; display: inline-flex; align-items: center; gap: 0.4rem; background: rgba(148, 163, 184, 0.1); color: var(--text-main); text-transform: uppercase; letter-spacing: 0.05em; border: 1px solid rgba(255,255,255,0.1);}
+    .sys-tag.accent { background: rgba(34, 211, 238, 0.1); color: var(--blue-accent); border-color: rgba(34, 211, 238, 0.2); }
+    .sys-tag.success { background: rgba(16, 185, 129, 0.15); color: var(--success); border-color: rgba(16, 185, 129, 0.2); }
+    .sys-tag.danger { background: rgba(244, 63, 94, 0.15); color: var(--danger); border-color: rgba(244, 63, 94, 0.2); }
+    .sys-tag.warning { background: rgba(245, 158, 11, 0.15); color: var(--warning); border-color: rgba(245, 158, 11, 0.2); }
+    .sys-tag.info { background: rgba(139, 92, 246, 0.15); color: #A78BFA; border-color: rgba(139, 92, 246, 0.2); }
 
     /* ================= BUTTONS ================= */
     .btn {
-        font-family: var(--font-main); font-weight: 500; font-size: 0.85rem;
-        padding: 0.6rem 1.2rem; display: inline-flex; align-items: center; justify-content: center; gap: 0.5rem;
-        border-radius: var(--radius-md); border: 1px solid transparent; cursor: pointer; transition: all 0.2s ease; text-decoration: none;
+        font-family: var(--font-main); font-weight: 700; font-size: 0.9rem;
+        padding: 0.75rem 1.5rem; display: inline-flex; align-items: center; justify-content: center; gap: 0.5rem;
+        border-radius: 999px; border: none; cursor: pointer; transition: all 0.3s cubic-bezier(0.4, 0, 0.2, 1); text-decoration: none;
+        letter-spacing: 0.02em;
     }
-    .btn-primary { background: var(--blue-accent); color: #fff; }
-    .btn-primary:hover { background: #1d4ed8; }
+    .btn-primary { 
+        background: var(--blue-gradient); color: #0B1120; 
+        box-shadow: 0 4px 15px rgba(34, 211, 238, 0.2);
+    }
+    .btn-primary:hover { 
+        transform: translateY(-3px);
+        box-shadow: 0 8px 25px rgba(34, 211, 238, 0.4); 
+    }
     
-    .btn-danger { background: var(--danger); color: #fff; }
-    .btn-danger:hover { background: #dc2626; }
+    .btn-danger { background: var(--danger); color: #fff; box-shadow: 0 4px 15px rgba(244, 63, 94, 0.2); }
+    .btn-danger:hover { transform: translateY(-3px); box-shadow: 0 8px 25px rgba(244, 63, 94, 0.4); }
 
-    .btn-outline { background: transparent; border-color: var(--border-color); color: var(--text-main); }
-    .btn-outline:hover { background: var(--bg-body); border-color: var(--text-muted); }
+    .btn-outline { background: rgba(255,255,255,0.05); border: 1px solid var(--border-solid); color: var(--text-main); }
+    .btn-outline:hover { background: rgba(34, 211, 238, 0.1); border-color: var(--blue-accent); color: var(--blue-accent); transform: translateY(-3px); box-shadow: 0 6px 15px rgba(34, 211, 238, 0.15);}
+    
+    .btn-outline.danger:hover { background: rgba(244, 63, 94, 0.1); border-color: var(--danger); color: var(--danger); box-shadow: 0 6px 15px rgba(244, 63, 94, 0.15);}
 
     /* ================= PILLS ================= */
-    .filter-pills { display: flex; gap: 0.5rem; overflow-x: auto; padding-bottom: 0.5rem; align-items: center; margin-bottom: 1.5rem;}
+    .filter-pills { display: flex; gap: 0.75rem; overflow-x: auto; padding-bottom: 0.5rem; align-items: center; margin-bottom: 1.5rem;}
+    .filter-pills::-webkit-scrollbar { height: 4px; }
+    .filter-pills::-webkit-scrollbar-thumb { background: rgba(34, 211, 238, 0.3); border-radius: 4px; }
     .pill {
-      padding: 0.4rem 1rem; background: var(--bg-body);
-      border: 1px solid var(--border-color); color: var(--text-muted); border-radius: 999px;
-      font-size: 0.85rem; font-weight: 500; transition: all 0.2s ease; cursor: pointer;
+      padding: 0.6rem 1.4rem; background: rgba(255,255,255,0.05);
+      border: 1px solid var(--border-color); color: var(--text-main); border-radius: 999px;
+      font-size: 0.85rem; font-weight: 700; transition: all 0.3s ease; cursor: pointer;
     }
-    .pill:hover { border-color: var(--text-muted); color: var(--text-main); }
-    .pill.active { background: var(--navy-primary); color: #fff; border-color: var(--navy-primary); }
+    .pill:hover { background: rgba(34, 211, 238, 0.1); border-color: var(--blue-accent); color: var(--blue-accent); transform: translateY(-2px);}
+    .pill.active { background: var(--blue-gradient); color: #0B1120; border: none; box-shadow: 0 4px 15px rgba(34, 211, 238, 0.3); }
 
     /* ================= LISTS & GRIDS ================= */
-    .task-grid { display: grid; grid-template-columns: repeat(auto-fit, minmax(300px, 1fr)); gap: 1.5rem; }
+    .task-grid { display: grid; grid-template-columns: repeat(auto-fit, minmax(320px, 1fr)); gap: 1.75rem; }
     .task-card {
-        background: var(--bg-card); border: 1px solid var(--border-color); border-radius: var(--radius-lg); padding: 1.5rem;
-        display: flex; flex-direction: column; justify-content: space-between; box-shadow: var(--shadow-sm); transition: transform 0.2s, box-shadow 0.2s;
+        background: var(--bg-card); backdrop-filter: blur(16px);
+        border: 1px solid var(--border-color); border-radius: var(--radius-lg); padding: 1.75rem;
+        display: flex; flex-direction: column; justify-content: space-between; 
+        box-shadow: var(--shadow-glass); transition: all 0.4s cubic-bezier(0.175, 0.885, 0.32, 1.275);
+        position: relative; overflow: hidden;
     }
-    .task-card:hover { transform: translateY(-3px); box-shadow: var(--shadow-md); border-color: #cbd5e1; }
+    .task-card:hover { transform: translateY(-8px) scale(1.01); box-shadow: var(--shadow-hover); border-color: rgba(34, 211, 238, 0.3); }
 
     /* ================= TABLES ================= */
-    .table-responsive { overflow-x: auto; border: 1px solid var(--border-color); border-radius: var(--radius-md); margin-bottom: 1rem; }
-    .custom-table { width: 100%; border-collapse: collapse; text-align: left; background: var(--bg-card); }
-    .custom-table th, .custom-table td { padding: 1rem; border-bottom: 1px solid var(--border-color); font-size: 0.9rem; vertical-align: middle; }
-    .custom-table th { background: var(--bg-body); color: var(--text-muted); font-weight: 600; font-size: 0.8rem; text-transform: uppercase; letter-spacing: 0.05em;}
-    .custom-table tbody tr:hover { background: #f8fafc; }
+    .table-responsive { overflow-x: auto; border: 1px solid var(--border-color); border-radius: var(--radius-lg); margin-bottom: 1rem; background: var(--bg-card); box-shadow: var(--shadow-glass);}
+    .custom-table { width: 100%; border-collapse: separate; border-spacing: 0; text-align: left; }
+    .custom-table th, .custom-table td { padding: 1.25rem 1rem; border-bottom: 1px solid var(--border-color); font-size: 0.95rem; vertical-align: middle; }
+    .custom-table th { background: rgba(255,255,255,0.02); color: var(--text-muted); font-weight: 800; font-size: 0.85rem; text-transform: uppercase; letter-spacing: 0.1em;}
+    .custom-table tbody tr { transition: all 0.3s ease; }
+    .custom-table tbody tr:hover { background: rgba(34, 211, 238, 0.05); transform: scale(1.002);}
     .custom-table tbody tr:last-child td { border-bottom: none; }
     
     /* ================= ALERTS ================= */
-    .alert { font-size: 0.9rem; font-weight: 500; border-radius: var(--radius-md); padding: 1rem 1.25rem; display: flex; align-items: center; gap: 0.75rem; margin-bottom: 1.5rem;}
-    .alert-danger { background: #fee2e2; color: #991b1b; border: 1px solid #fecaca; }
-    .alert-success { background: #dcfce7; color: #166534; border: 1px solid #bbf7d0; }
+    .alert { font-size: 0.95rem; font-weight: 600; border-radius: var(--radius-md); padding: 1.25rem 1.5rem; display: flex; align-items: center; gap: 1rem; margin-bottom: 1.5rem; box-shadow: var(--shadow-glass); border: 1px solid;}
+    .alert-danger { background: rgba(244, 63, 94, 0.1); color: #FDA4AF; border-color: rgba(244, 63, 94, 0.3); }
+    .alert-success { background: rgba(16, 185, 129, 0.1); color: #6EE7B7; border-color: rgba(16, 185, 129, 0.3); }
 
     /* ================= FORMS & MODALS ================= */
-    .form-group { margin-bottom: 1.25rem; }
-    .form-group label { display: block; margin-bottom: 0.4rem; font-size: 0.85rem; font-weight: 600; color: var(--text-main); }
+    .form-group { margin-bottom: 1.5rem; }
+    .form-group label { display: block; margin-bottom: 0.5rem; font-size: 0.9rem; font-weight: 700; color: var(--text-main); }
     .form-control, .form-select-custom {
-      width: 100%; padding: 0.6rem 1rem; background: var(--bg-body); border: 1px solid var(--border-color);
-      color: var(--text-main); font-family: inherit; font-size: 0.9rem; outline: none; transition: border 0.2s;
-      border-radius: var(--radius-md);
+      width: 100%; padding: 0.85rem 1.25rem; background: #F8FAFC; border: 1px solid var(--border-color);
+      color: var(--text-main); font-family: inherit; font-size: 0.95rem; outline: none; transition: all 0.3s cubic-bezier(0.4, 0, 0.2, 1);
+      border-radius: var(--radius-md); 
     }
-    .form-control:focus, .form-select-custom:focus { border-color: var(--blue-accent); background: var(--bg-card); box-shadow: 0 0 0 3px rgba(37, 99, 235, 0.1); }
+    .form-control:focus, .form-select-custom:focus { 
+        border-color: var(--blue-accent); 
+        background: #FFFFFF; 
+        box-shadow: 0 0 0 4px rgba(79, 70, 229, 0.15); 
+        transform: translateY(-2px);
+    }
+    /* Style the select dropdown options */
+    .form-select-custom option { background: #FFFFFF; color: var(--text-main); }
 
     .modal-overlay {
       position: fixed; top: 0; left: 0; right: 0; bottom: 0;
-      background: rgba(15, 23, 42, 0.6); backdrop-filter: blur(2px);
+      background: rgba(0, 0, 0, 0.8); backdrop-filter: blur(12px);
       display: none; align-items: center; justify-content: center; z-index: 1000; padding: 1rem;
+      animation: fadeIn 0.4s cubic-bezier(0.16, 1, 0.3, 1);
     }
+    @keyframes fadeIn { from { opacity: 0; backdrop-filter: blur(0px); } to { opacity: 1; backdrop-filter: blur(12px); } }
+    
     .modal-content {
-      background: var(--bg-card); border: 1px solid var(--border-color);
-      max-width: 600px; width: 100%; max-height: 90vh; overflow-y: auto; padding: 2rem;
-      border-radius: var(--radius-lg); box-shadow: 0 10px 15px -3px rgba(0,0,0,0.1); 
+      background: #FFFFFF; border: 1px solid var(--border-solid);
+      max-width: 650px; width: 100%; max-height: 90vh; overflow-y: auto; padding: 2.5rem;
+      border-radius: var(--radius-lg); box-shadow: 0 25px 50px -12px rgba(0,0,0,0.2); 
+      animation: slideUp 0.5s cubic-bezier(0.175, 0.885, 0.32, 1.275);
     }
-    .modal-header { display: flex; justify-content: space-between; align-items: center; margin-bottom: 1.5rem; padding-bottom: 1rem; border-bottom: 1px solid var(--border-color); }
-    .modal-header h3 { font-weight: 700; color: var(--navy-primary); font-size: 1.25rem; margin: 0;}
-    .close-btn { background: none; border: none; color: var(--text-muted); font-size: 1.5rem; padding: 0; line-height: 1; cursor: pointer;}
-    .close-btn:hover { color: var(--text-main); }
+    @keyframes slideUp { from { transform: translateY(40px) scale(0.95); opacity: 0; } to { transform: translateY(0) scale(1); opacity: 1; } }
+    
+    .modal-header { display: flex; justify-content: space-between; align-items: center; margin-bottom: 2rem; padding-bottom: 1rem; border-bottom: 1px solid var(--border-color); }
+    .modal-header h3 { font-weight: 800; color: var(--navy-primary); font-size: 1.5rem; margin: 0; letter-spacing: -0.02em;}
+    .close-btn { background: none; border: none; color: var(--text-muted); font-size: 1.75rem; padding: 0; line-height: 1; cursor: pointer; transition: all 0.3s ease;}
+    .close-btn:hover { color: var(--danger); transform: rotate(90deg); }
 
     @media (max-width: 1024px) {
-        .sidebar { transform: translateX(-100%); transition: transform 0.3s; }
+        .sidebar { transform: translateX(-100%); transition: transform 0.4s cubic-bezier(0.4, 0, 0.2, 1); }
         .sidebar.show { transform: translateX(0); }
         .content-wrapper { margin-left: 0; }
+        .top-navbar { padding: 0 1rem; }
+        .main-content { padding: 1.5rem; }
     }
-    </style>
+</style>
 </head>
 <body>
 
@@ -749,6 +862,9 @@ foreach($activities as $a) {
             <a href="faculty_dashboard.php?view=mini_project" class="sidebar-link <?php echo ($view == 'mini_project') ? 'active' : ''; ?>">
                 <i class="fa-solid fa-microchip"></i> <span>Mini Project</span>
             </a>
+            <a href="faculty_dashboard.php?view=other" class="sidebar-link <?php echo ($view == 'other') ? 'active' : ''; ?>">
+                <i class="fa-solid fa-asterisk"></i> <span>Other</span>
+            </a>
 
             <div class="menu-label">Account</div>
             <a href="auth/logout.php" class="sidebar-link" style="color: #ef4444;">
@@ -769,7 +885,7 @@ foreach($activities as $a) {
     <div class="content-wrapper">
         <header class="top-navbar">
             <div class="d-flex align-items-center gap-3">
-                <button class="btn btn-outline d-lg-none" id="sidebarToggle" style="padding: 0.4rem 0.8rem;"><i class="fa-solid fa-bars"></i></button>
+
                 <h3>
                     <?php 
                     $titles = [
@@ -1024,14 +1140,32 @@ foreach($activities as $a) {
 
                         <div class="form-group">
                             <label>Activity Type *</label>
-                            <select name="type" class="form-select-custom" required>
-                                <option value="quiz">Quiz</option>
-                                <option value="poster_making">Poster Making</option>
-                                <option value="ppt">PPT Presentation</option>
-                                <option value="case_study">Case Study</option>
-                                <option value="gd">Group Discussion</option>
-                                <option value="mini_project">Mini Project</option>
-                            </select>
+                            <?php
+                            $pre_type = isset($_GET['type']) ? $_GET['type'] : null;
+                            $typeNames = [
+                                'quiz' => 'Quiz',
+                                'poster_making' => 'Poster Making',
+                                'ppt' => 'PPT Presentation',
+                                'case_study' => 'Case Study',
+                                'gd' => 'Group Discussion',
+                                'mini_project' => 'Mini Project',
+                                'other' => 'Other'
+                            ];
+                            if ($pre_type && isset($typeNames[$pre_type])): ?>
+                                <input type="hidden" name="type" value="<?php echo htmlspecialchars($pre_type); ?>" id="activity_type_select">
+                                <input type="text" class="form-control-custom" value="<?php echo htmlspecialchars($typeNames[$pre_type]); ?>" disabled style="background-color: #f1f5f9; cursor: not-allowed; color: var(--text-muted); font-weight: 500;">
+                            <?php else: ?>
+                                <select name="type" class="form-select-custom" id="activity_type_select" required>
+                                    <option value="" disabled selected>Select Activity Type</option>
+                                    <option value="quiz">Quiz</option>
+                                    <option value="poster_making">Poster Making</option>
+                                    <option value="ppt">PPT Presentation</option>
+                                    <option value="case_study">Case Study</option>
+                                    <option value="gd">Group Discussion</option>
+                                    <option value="mini_project">Mini Project</option>
+                                    <option value="other">Other</option>
+                                </select>
+                            <?php endif; ?>
                         </div>
                     </div>
 
@@ -1088,6 +1222,106 @@ foreach($activities as $a) {
                         <textarea name="description" class="form-control" rows="5"></textarea>
                     </div>
 
+                    <!-- QUIZ BUILDER SECTION -->
+                    <div id="quiz_builder_section" style="display: none; margin-bottom: 2rem; padding: 1.5rem; background: #F8FAFC; border: 1px solid var(--border-color); border-radius: var(--radius-md);">
+                        <div style="display: flex; justify-content: space-between; align-items: center; margin-bottom: 1rem;">
+                            <h4 style="margin: 0; font-weight: 700; color: var(--navy-primary);">Quiz Questions</h4>
+                            <button type="button" class="btn btn-outline" onclick="addQuizQuestion()" style="padding: 0.3rem 0.8rem; font-size: 0.85rem;"><i class="fa-solid fa-plus"></i> Add Question</button>
+                        </div>
+                        <div id="quiz_questions_container">
+                            <!-- Questions will be appended here -->
+                        </div>
+                    </div>
+
+                    <!-- GD BUILDER SECTION -->
+                    <div id="gd_builder_section" style="display: none; margin-bottom: 2rem; padding: 1.5rem; background: #F8FAFC; border: 1px solid var(--border-color); border-radius: var(--radius-md);">
+                        <div style="display: flex; justify-content: space-between; align-items: center; margin-bottom: 1rem;">
+                            <h4 style="margin: 0; font-weight: 700; color: var(--navy-primary);">Group Discussion Topics</h4>
+                            <button type="button" class="btn btn-outline" onclick="addGDGroup()" style="padding: 0.3rem 0.8rem; font-size: 0.85rem;"><i class="fa-solid fa-plus"></i> Add Group</button>
+                        </div>
+                        <div id="gd_groups_container">
+                            <!-- Groups will be appended here -->
+                        </div>
+                    </div>
+
+                    <script>
+                        document.addEventListener('DOMContentLoaded', function() {
+                            const typeSelect = document.getElementById('activity_type_select');
+                            const quizSection = document.getElementById('quiz_builder_section');
+                            const gdSection = document.getElementById('gd_builder_section');
+
+                            function handleTypeChange() {
+                                quizSection.style.display = 'none';
+                                gdSection.style.display = 'none';
+                                if (typeSelect.value === 'quiz') {
+                                    quizSection.style.display = 'block';
+                                    if(document.getElementById('quiz_questions_container').children.length === 0) {
+                                        addQuizQuestion();
+                                    }
+                                } else if (typeSelect.value === 'gd') {
+                                    gdSection.style.display = 'block';
+                                    if(document.getElementById('gd_groups_container').children.length === 0) {
+                                        addGDGroup();
+                                    }
+                                }
+                            }
+
+                            typeSelect.addEventListener('change', handleTypeChange);
+                            handleTypeChange(); // Run on init
+                        });
+
+                        let quizIndex = 0;
+                        function addQuizQuestion() {
+                            quizIndex++;
+                            const container = document.getElementById('quiz_questions_container');
+                            const div = document.createElement('div');
+                            div.style.cssText = "background: #fff; padding: 1rem; border: 1px solid var(--border-color); border-radius: 6px; margin-bottom: 1rem; position: relative;";
+                            div.innerHTML = `
+                                <button type="button" onclick="this.parentElement.remove()" style="position: absolute; right: 10px; top: 10px; background: none; border: none; color: var(--danger); cursor: pointer;"><i class="fa-solid fa-trash"></i></button>
+                                <div class="form-group" style="margin-bottom: 1rem;">
+                                    <label>Question ${quizIndex}</label>
+                                    <input type="text" name="quiz_question[]" class="form-control" required placeholder="Enter question text">
+                                </div>
+                                <div style="display: grid; grid-template-columns: 1fr 1fr; gap: 1rem; margin-bottom: 1rem;">
+                                    <div><label style="font-size:0.8rem;">Option A</label><input type="text" name="quiz_opt_a[]" class="form-control" required></div>
+                                    <div><label style="font-size:0.8rem;">Option B</label><input type="text" name="quiz_opt_b[]" class="form-control" required></div>
+                                    <div><label style="font-size:0.8rem;">Option C</label><input type="text" name="quiz_opt_c[]" class="form-control" required></div>
+                                    <div><label style="font-size:0.8rem;">Option D</label><input type="text" name="quiz_opt_d[]" class="form-control" required></div>
+                                </div>
+                                <div class="form-group" style="margin-bottom: 0;">
+                                    <label style="font-size:0.8rem;">Correct Answer</label>
+                                    <select name="quiz_correct[]" class="form-select-custom">
+                                        <option value="A">Option A</option>
+                                        <option value="B">Option B</option>
+                                        <option value="C">Option C</option>
+                                        <option value="D">Option D</option>
+                                    </select>
+                                </div>
+                            `;
+                            container.appendChild(div);
+                        }
+
+                        let gdIndex = 0;
+                        function addGDGroup() {
+                            gdIndex++;
+                            const container = document.getElementById('gd_groups_container');
+                            const div = document.createElement('div');
+                            div.style.cssText = "background: #fff; padding: 1rem; border: 1px solid var(--border-color); border-radius: 6px; margin-bottom: 1rem; position: relative; display: flex; gap: 1rem;";
+                            div.innerHTML = `
+                                <div style="flex: 1;">
+                                    <label style="font-size:0.8rem;">Group Name</label>
+                                    <input type="text" name="gd_group[]" class="form-control" required placeholder="e.g. Group 1">
+                                </div>
+                                <div style="flex: 2;">
+                                    <label style="font-size:0.8rem;">Topic</label>
+                                    <input type="text" name="gd_topic[]" class="form-control" required placeholder="Enter GD topic">
+                                </div>
+                                <button type="button" onclick="this.parentElement.remove()" style="background: none; border: none; color: var(--danger); cursor: pointer; padding-top: 1.5rem;"><i class="fa-solid fa-trash"></i></button>
+                            `;
+                            container.appendChild(div);
+                        }
+                    </script>
+
                     <div style="display: flex; justify-content: flex-end; gap: 1rem; border-top: 1px solid var(--border-color); padding-top: 1.5rem;">
                         <a href="faculty_dashboard.php?view=dashboard" class="btn btn-outline">Cancel</a>
                         <button type="submit" class="btn btn-primary">
@@ -1113,27 +1347,6 @@ foreach($activities as $a) {
                 </div>
             </div>
 
-            <!-- AUTOFILL SCORE DEDUCTION TOOL -->
-            <div class="module-card" style="padding: 1.5rem 2rem; margin-bottom: 2rem;">
-                <div style="display: flex; justify-content: space-between; align-items: center; flex-wrap: wrap; gap: 1.5rem;">
-                    <div>
-                        <h3 style="font-size: 1.1rem; font-weight: 700; color: var(--navy-primary); margin: 0;">Automatic Mark Deduction</h3>
-                        <p style="font-size: 0.85rem; color: var(--text-muted); margin: 0;">Apply global late penalties.</p>
-                    </div>
-                    
-                    <form action="faculty_dashboard.php?view=recreate" method="POST" style="display: flex; align-items: center; gap: 0.75rem;">
-                        <input type="hidden" name="action" value="autofill_deduction">
-                        <select name="deduction_rate" class="form-select-custom" style="width: auto; font-size: 0.85rem; padding: 0.4rem 1rem;">
-                            <option value="5">5% Penalty / Day</option>
-                            <option value="10">10% Penalty / Day</option>
-                            <option value="15">15% Penalty / Day</option>
-                        </select>
-                        <button type="submit" class="btn btn-primary" style="padding: 0.45rem 1rem; font-size: 0.85rem;">
-                            Apply
-                        </button>
-                    </form>
-                </div>
-            </div>
 
             <div class="module-card">
                 <div style="display: flex; justify-content: space-between; align-items: center; margin-bottom: 1.5rem;">
@@ -1201,7 +1414,7 @@ foreach($activities as $a) {
 
         <?php
         // VIEW 4: QUICK ACTIVITY VIEWS WITH CLASS/BRANCH WORKSPACE TABS
-        elseif (in_array($view, ['quiz', 'poster_making', 'ppt', 'case_study', 'gd', 'mini_project'])):
+        elseif (in_array($view, ['quiz', 'poster_making', 'ppt', 'case_study', 'gd', 'mini_project', 'other'])):
             $type_meta = get_type_meta($view);
             $type_activities = array_values(array_filter($activities, function($a) use ($view) {
                 return strtolower($a['type']) === strtolower($view);
@@ -1214,7 +1427,7 @@ foreach($activities as $a) {
                         <?php echo htmlspecialchars($type_meta['name']); ?>
                     </h1>
                 </div>
-                <a href="faculty_dashboard.php?view=create" class="btn btn-primary">
+                <a href="faculty_dashboard.php?view=create&type=<?php echo urlencode($view); ?>" class="btn btn-primary">
                     Create New
                 </a>
             </div>
@@ -1463,6 +1676,7 @@ foreach($activities as $a) {
                         <option value="case_study">Case Study</option>
                         <option value="gd">Group Discussion</option>
                         <option value="mini_project">Mini Project</option>
+                        <option value="other">Other</option>
                     </select>
                 </div>
             </div>
