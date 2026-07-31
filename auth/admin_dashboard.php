@@ -204,7 +204,7 @@ $active_page = 'dashboard';
 
         /* Premium Hero Banner (matching the royal navy landing page overlay) */
         .premium-hero {
-            background: linear-gradient(135deg, rgba(15, 32, 67, 0.92) 0%, rgba(15, 32, 67, 0.82) 50%, rgba(15, 32, 67, 0.5) 100%), url('../assets/images/college_building.jpg');
+            background: linear-gradient(135deg, rgba(15, 32, 67, 0.92) 0%, rgba(15, 32, 67, 0.82) 50%, rgba(15, 32, 67, 0.5) 100%), url('../assets/images/college_building_v3.png');
             background-size: cover;
             background-position: center;
             border-radius: var(--radius-lg);
