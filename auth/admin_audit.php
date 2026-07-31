@@ -81,7 +81,7 @@ $active_page = 'audit';
     <style>
         /* Premium Hero Banner (Matching the screenshot theme) */
         .premium-hero {
-            background: linear-gradient(135deg, rgba(15, 23, 42, 0.92), rgba(30, 41, 59, 0.85)), url('../assets/images/college_building.jpg');
+            background: linear-gradient(135deg, rgba(15, 23, 42, 0.92), rgba(30, 41, 59, 0.85)), url('../assets/images/college_building_v3.png');
             background-size: cover;
             background-position: center;
             border-radius: var(--radius-lg);

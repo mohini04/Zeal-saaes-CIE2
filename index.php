@@ -282,7 +282,7 @@ if (empty($tickerNotices)) {
             position: relative;
             height: 52vh;
             min-height: 420px;
-            background-image: url('assets/images/college_building.jpg'); 
+            background-image: url('assets/images/college_building_v3.png'); 
             background-size: cover;
             background-position: center;
             background-repeat: no-repeat;

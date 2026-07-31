@@ -182,7 +182,7 @@ if ($_SERVER["REQUEST_METHOD"] === "POST") {
             /* College Building Background with Deep Blue Overlay */
             background-image: 
                 linear-gradient(135deg, rgba(15, 23, 42, 0.9) 0%, rgba(37, 99, 235, 0.75) 100%), 
-                url('../assets/images/college_building.jpg');
+                url('../assets/images/college_building_v3.png');
             background-size: cover;
             background-position: center;
             background-repeat: no-repeat;

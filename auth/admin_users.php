@@ -109,35 +109,43 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
         $allowedStaffRoles = ['Faculty', 'HOD', 'GFM', 'Admin'];
 
         if (!empty($staff_name) && !empty($username) && in_array($staff_role, $allowedStaffRoles)) {
-            $checkU = $conn->prepare("SELECT user_id FROM users WHERE LOWER(username) = ?");
-            $checkU->bind_param("s", $username);
-            $checkU->execute();
-            if ($checkU->get_result()->num_rows > 0) {
-                $flashMessage = "Account creation aborted: Username/Email '$username' is already registered.";
+            if (!preg_match("/^[a-zA-Z\s]+$/", $staff_name)) {
+                $flashMessage = "Account creation aborted: Only uppercase and lowercase letters are used as a full name.";
+                $flashClass = "alert-danger";
+            } elseif (!filter_var($username, FILTER_VALIDATE_EMAIL)) {
+                $flashMessage = "Account creation aborted: Invalid email address format.";
                 $flashClass = "alert-danger";
             } else {
-                $createStaff = $conn->prepare("INSERT INTO users (name, username, email, department, password, role, is_first_login) VALUES (?, ?, ?, ?, ?, ?, 1)");
-                $createStaff->bind_param("ssssss", $staff_name, $username, $username, $staff_dept, $defaultPass, $staff_role);
-                if ($createStaff->execute()) {
-                    $deptStr = !empty($staff_dept) ? " | Branch: $staff_dept" : "";
-                    
-                    // Log action to audit logs
-                    $logAction = "Manually created $staff_role account: $username ($staff_name)";
-                    $auditStmt = $conn->prepare("INSERT INTO audit_logs (user_id, role, action, details) VALUES (?, 'Admin', 'Create Staff Account', ?)");
-                    $adminUid = (int)$_SESSION['user_id'];
-                    $auditStmt->bind_param("is", $adminUid, $logAction);
-                    $auditStmt->execute();
-                    $auditStmt->close();
-
-                    $flashMessage = "Staff account created successfully! Role: $staff_role$deptStr | Login: $username | Default Passkey: Zeal@2026";
-                    $flashClass = "alert-success";
-                } else {
-                    $flashMessage = "Error writing staff user record.";
+                $checkU = $conn->prepare("SELECT user_id FROM users WHERE LOWER(username) = ?");
+                $checkU->bind_param("s", $username);
+                $checkU->execute();
+                if ($checkU->get_result()->num_rows > 0) {
+                    $flashMessage = "Account creation aborted: Username/Email '$username' is already registered.";
                     $flashClass = "alert-danger";
+                } else {
+                    $createStaff = $conn->prepare("INSERT INTO users (name, username, email, department, password, role, is_first_login) VALUES (?, ?, ?, ?, ?, ?, 1)");
+                    $createStaff->bind_param("ssssss", $staff_name, $username, $username, $staff_dept, $defaultPass, $staff_role);
+                    if ($createStaff->execute()) {
+                        $deptStr = !empty($staff_dept) ? " | Branch: $staff_dept" : "";
+                        
+                        // Log action to audit logs
+                        $logAction = "Manually created $staff_role account: $username ($staff_name)";
+                        $auditStmt = $conn->prepare("INSERT INTO audit_logs (user_id, role, action, details) VALUES (?, 'Admin', 'Create Staff Account', ?)");
+                        $adminUid = (int)$_SESSION['user_id'];
+                        $auditStmt->bind_param("is", $adminUid, $logAction);
+                        $auditStmt->execute();
+                        $auditStmt->close();
+
+                        $flashMessage = "Staff account created successfully! Role: $staff_role$deptStr | Login: $username | Default Passkey: Zeal@2026";
+                        $flashClass = "alert-success";
+                    } else {
+                        $flashMessage = "Error writing staff user record.";
+                        $flashClass = "alert-danger";
+                    }
+                    $createStaff->close();
                 }
-                $createStaff->close();
+                $checkU->close();
             }
-            $checkU->close();
         } else {
             $flashMessage = "Please select a valid staff role and complete all fields.";
             $flashClass = "alert-warning";
@@ -230,7 +238,7 @@ if ($userQ && mysqli_num_rows($userQ) > 0) {
     <style>
         /* Premium Hero Banner (Matching the screenshot theme) */
         .premium-hero {
-            background: linear-gradient(135deg, rgba(15, 23, 42, 0.92), rgba(30, 41, 59, 0.85)), url('../assets/images/college_building.jpg');
+            background: linear-gradient(135deg, rgba(15, 23, 42, 0.92), rgba(30, 41, 59, 0.85)), url('../assets/images/college_building_v3.png');
             background-size: cover;
             background-position: center;
             border-radius: var(--radius-lg);
@@ -645,16 +653,22 @@ if ($userQ && mysqli_num_rows($userQ) > 0) {
             <h3 class="card-title" style="margin-bottom: 0.5rem;"><i class="fa-solid fa-user-shield"></i> Create Staff Credentials</h3>
             <p class="card-subtitle">Generate accounts for Faculty, GFM, HOD, and Administrators. Default passkey: <strong>Zeal@2026</strong></p>
 
-            <form method="POST">
+            <form method="POST" id="createStaffForm">
                 <input type="hidden" name="action" value="create_staff_idp">
                 <div class="form-grid">
                     <div class="form-group">
                         <label class="form-label">Full Name</label>
-                        <input type="text" name="staff_name" class="form-input" placeholder="e.g. Dr. Ramesh Patil" required autocomplete="off">
+                        <input type="text" name="staff_name" id="staff_name" class="form-input" placeholder="e.g. Ramesh Patil" required autocomplete="off">
+                        <span class="error-message" id="staff_name_error" style="color: #dc2626; font-size: 0.775rem; margin-top: 4px; display: none;">
+                            <i class="fa-solid fa-circle-exclamation" style="margin-right: 4px;"></i> Only uppercase and lowercase letters are used as a full name
+                        </span>
                     </div>
                     <div class="form-group">
                         <label class="form-label">Email Address (Username)</label>
-                        <input type="email" name="staff_username" class="form-input" placeholder="e.g. rpatil@zealeducation.com" required autocomplete="off">
+                        <input type="email" name="staff_username" id="staff_username" class="form-input" placeholder="e.g. rpatil@zealeducation.com" required autocomplete="off">
+                        <span class="error-message" id="staff_username_error" style="color: #dc2626; font-size: 0.775rem; margin-top: 4px; display: none;">
+                            <i class="fa-solid fa-circle-exclamation" style="margin-right: 4px;"></i> Please enter a valid email address format
+                        </span>
                     </div>
                     <div class="form-group">
                         <label class="form-label">Role Designation</label>
@@ -759,5 +773,71 @@ if (file_exists($modalPath)) {
     include_once $modalPath;
 }
 ?>
+<script>
+document.addEventListener('DOMContentLoaded', function() {
+    const form = document.getElementById('createStaffForm');
+    const nameInput = document.getElementById('staff_name');
+    const emailInput = document.getElementById('staff_username');
+    const nameError = document.getElementById('staff_name_error');
+    const emailError = document.getElementById('staff_username_error');
+
+    const nameRegex = /^[a-zA-Z\s]+$/;
+    const emailRegex = /^[^\s@]+@[^\s@]+\.[^\s@]+$/;
+
+    function validateName() {
+        const val = nameInput.value;
+        if (val.length > 0 && !nameRegex.test(val)) {
+            nameError.style.display = 'block';
+            nameInput.style.borderColor = '#dc2626';
+            nameInput.style.boxShadow = '0 0 0 3px rgba(220, 38, 38, 0.15)';
+            return false;
+        } else {
+            nameError.style.display = 'none';
+            nameInput.style.borderColor = '';
+            nameInput.style.boxShadow = '';
+            return true;
+        }
+    }
+
+    function validateEmail() {
+        const val = emailInput.value;
+        if (val.length > 0 && !emailRegex.test(val)) {
+            emailError.style.display = 'block';
+            emailInput.style.borderColor = '#dc2626';
+            emailInput.style.boxShadow = '0 0 0 3px rgba(220, 38, 38, 0.15)';
+            return false;
+        } else {
+            emailError.style.display = 'none';
+            emailInput.style.borderColor = '';
+            emailInput.style.boxShadow = '';
+            return true;
+        }
+    }
+
+    if (nameInput) {
+        nameInput.addEventListener('input', validateName);
+        nameInput.addEventListener('blur', validateName);
+    }
+    if (emailInput) {
+        emailInput.addEventListener('input', validateEmail);
+        emailInput.addEventListener('blur', validateEmail);
+    }
+
+    if (form) {
+        form.addEventListener('submit', function(e) {
+            const isNameValid = validateName();
+            const isEmailValid = validateEmail();
+            if (!isNameValid || !isEmailValid) {
+                e.preventDefault();
+                if (!isNameValid) {
+                    nameInput.focus();
+                } else if (!isEmailValid) {
+                    emailInput.focus();
+                }
+            }
+        });
+    }
+});
+</script>
 </body>
 </html>

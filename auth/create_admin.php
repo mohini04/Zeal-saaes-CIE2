@@ -91,26 +91,34 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
         $allowedStaffRoles = ['Faculty', 'HOD', 'GFM', 'Admin'];
 
         if (!empty($staff_name) && !empty($username) && in_array($staff_role, $allowedStaffRoles)) {
-            $checkU = $conn->prepare("SELECT user_id FROM users WHERE LOWER(username) = ?");
-            $checkU->bind_param("s", $username);
-            $checkU->execute();
-            if ($checkU->get_result()->num_rows > 0) {
-                $flashMessage = "Account creation aborted: Username/Email '$username' is already registered.";
+            if (!preg_match("/^[a-zA-Z\s]+$/", $staff_name)) {
+                $flashMessage = "Account creation aborted: Only uppercase and lowercase letters are used as a full name.";
+                $flashClass = "alert-danger bg-dark text-danger border-danger";
+            } elseif (!filter_var($username, FILTER_VALIDATE_EMAIL)) {
+                $flashMessage = "Account creation aborted: Invalid email address format.";
                 $flashClass = "alert-danger bg-dark text-danger border-danger";
             } else {
-                $createStaff = $conn->prepare("INSERT INTO users (name, username, email, department, password, role, is_first_login) VALUES (?, ?, ?, ?, ?, ?, 1)");
-                $createStaff->bind_param("ssssss", $staff_name, $username, $username, $staff_dept, $defaultPass, $staff_role);
-                if ($createStaff->execute()) {
-                    $deptStr = !empty($staff_dept) ? " | Branch: $staff_dept" : "";
-                    $flashMessage = "Staff IDP provisioned successfully! Role: $staff_role$deptStr | Login: $username | Default Passkey: Zeal@2026";
-                    $flashClass = "alert-success bg-dark text-success border-success";
-                } else {
-                    $flashMessage = "Error writing staff IDP user record.";
+                $checkU = $conn->prepare("SELECT user_id FROM users WHERE LOWER(username) = ?");
+                $checkU->bind_param("s", $username);
+                $checkU->execute();
+                if ($checkU->get_result()->num_rows > 0) {
+                    $flashMessage = "Account creation aborted: Username/Email '$username' is already registered.";
                     $flashClass = "alert-danger bg-dark text-danger border-danger";
+                } else {
+                    $createStaff = $conn->prepare("INSERT INTO users (name, username, email, department, password, role, is_first_login) VALUES (?, ?, ?, ?, ?, ?, 1)");
+                    $createStaff->bind_param("ssssss", $staff_name, $username, $username, $staff_dept, $defaultPass, $staff_role);
+                    if ($createStaff->execute()) {
+                        $deptStr = !empty($staff_dept) ? " | Branch: $staff_dept" : "";
+                        $flashMessage = "Staff IDP provisioned successfully! Role: $staff_role$deptStr | Login: $username | Default Passkey: Zeal@2026";
+                        $flashClass = "alert-success bg-dark text-success border-success";
+                    } else {
+                        $flashMessage = "Error writing staff IDP user record.";
+                        $flashClass = "alert-danger bg-dark text-danger border-danger";
+                    }
+                    $createStaff->close();
                 }
-                $createStaff->close();
+                $checkU->close();
             }
-            $checkU->close();
         } else {
             $flashMessage = "Please select a valid staff role and complete all fields.";
             $flashClass = "alert-warning bg-dark text-warning border-warning";
@@ -247,16 +255,22 @@ if ($userQ && mysqli_num_rows($userQ) > 0) {
             </div>
             <p class="text-secondary small mb-3">Manually assign login credentials for staff roles (Faculty, HOD, GFM, Admin). Default passkey will be <code>Zeal@2026</code>.</p>
 
-            <form method="POST" action="admin_users.php">
+            <form method="POST" action="admin_users.php" id="createStaffForm">
                 <input type="hidden" name="action" value="create_staff_idp">
                 <div class="row g-3 align-items-end">
                     <div class="col-md-3">
                         <label class="eyebrow mb-1 d-block">Staff Member Name</label>
-                        <input type="text" name="staff_name" class="form-control-custom" placeholder="e.g. Dr. Alan Smith" required autocomplete="off">
+                        <input type="text" name="staff_name" id="staff_name" class="form-control-custom" placeholder="e.g. Alan Smith" required autocomplete="off">
+                        <span class="error-message" id="staff_name_error" style="color: #dc2626; font-size: 0.775rem; margin-top: 4px; display: none;">
+                            <i class="fa-solid fa-circle-exclamation" style="margin-right: 4px;"></i> Only uppercase and lowercase letters are used as a full name
+                        </span>
                     </div>
                     <div class="col-md-3">
                         <label class="eyebrow mb-1 d-block">Official Username / Email</label>
-                        <input type="text" name="staff_username" class="form-control-custom" placeholder="e.g. alansmith@zeal.in" required autocomplete="off">
+                        <input type="email" name="staff_username" id="staff_username" class="form-control-custom" placeholder="e.g. alansmith@zeal.in" required autocomplete="off">
+                        <span class="error-message" id="staff_username_error" style="color: #dc2626; font-size: 0.775rem; margin-top: 4px; display: none;">
+                            <i class="fa-solid fa-circle-exclamation" style="margin-right: 4px;"></i> Please enter a valid email address format
+                        </span>
                     </div>
                     <div class="col-md-2">
                         <label class="eyebrow mb-1 d-block">Assign Staff Role</label>
@@ -400,6 +414,71 @@ if ($userQ && mysqli_num_rows($userQ) > 0) {
         class Star { constructor() { this.x = Math.random() * canvas.width; this.y = Math.random() * canvas.height; this.size = Math.random() * 1.2 + 0.3; this.speed = Math.random() * 0.4 + 0.1; this.alpha = Math.random() * 0.5 + 0.1; } update() { this.y -= this.speed; if (this.y < 0) { this.y = canvas.height; this.x = Math.random() * canvas.width; } } draw() { ctx.fillStyle = `rgba(255, 255, 255, ${this.alpha})`; ctx.beginPath(); ctx.arc(this.x, this.y, this.size, 0, Math.PI * 2); ctx.fill(); } }
         for (let i = 0; i < numStars; i++) stars.push(new Star());
         function loop() { ctx.fillStyle = '#010103'; ctx.fillRect(0, 0, canvas.width, canvas.height); stars.forEach(s => { s.update(); s.draw(); }); requestAnimationFrame(loop); } loop();
+
+        document.addEventListener('DOMContentLoaded', function() {
+            const form = document.getElementById('createStaffForm');
+            const nameInput = document.getElementById('staff_name');
+            const emailInput = document.getElementById('staff_username');
+            const nameError = document.getElementById('staff_name_error');
+            const emailError = document.getElementById('staff_username_error');
+
+            const nameRegex = /^[a-zA-Z\s]+$/;
+            const emailRegex = /^[^\s@]+@[^\s@]+\.[^\s@]+$/;
+
+            function validateName() {
+                const val = nameInput.value;
+                if (val.length > 0 && !nameRegex.test(val)) {
+                    nameError.style.display = 'block';
+                    nameInput.style.borderColor = '#dc2626';
+                    nameInput.style.boxShadow = '0 0 0 3px rgba(220, 38, 38, 0.15)';
+                    return false;
+                } else {
+                    nameError.style.display = 'none';
+                    nameInput.style.borderColor = '';
+                    nameInput.style.boxShadow = '';
+                    return true;
+                }
+            }
+
+            function validateEmail() {
+                const val = emailInput.value;
+                if (val.length > 0 && !emailRegex.test(val)) {
+                    emailError.style.display = 'block';
+                    emailInput.style.borderColor = '#dc2626';
+                    emailInput.style.boxShadow = '0 0 0 3px rgba(220, 38, 38, 0.15)';
+                    return false;
+                } else {
+                    emailError.style.display = 'none';
+                    emailInput.style.borderColor = '';
+                    emailInput.style.boxShadow = '';
+                    return true;
+                }
+            }
+
+            if (nameInput) {
+                nameInput.addEventListener('input', validateName);
+                nameInput.addEventListener('blur', validateName);
+            }
+            if (emailInput) {
+                emailInput.addEventListener('input', validateEmail);
+                emailInput.addEventListener('blur', validateEmail);
+            }
+
+            if (form) {
+                form.addEventListener('submit', function(e) {
+                    const isNameValid = validateName();
+                    const isEmailValid = validateEmail();
+                    if (!isNameValid || !isEmailValid) {
+                        e.preventDefault();
+                        if (!isNameValid) {
+                            nameInput.focus();
+                        } else if (!isEmailValid) {
+                            emailInput.focus();
+                        }
+                    }
+                });
+            }
+        });
     </script>
 </body>
 </html>
